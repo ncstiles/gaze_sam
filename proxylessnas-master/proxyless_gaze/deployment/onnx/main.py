@@ -285,9 +285,10 @@ def make_parser():
 if __name__ == '__main__':
     args = make_parser().parse_args()
     
-    face_detection_session = onnxruntime.InferenceSession("./models/face_detection.onnx")
-    landmark_detection_session = onnxruntime.InferenceSession("./models/landmark_detection.onnx")
-    gaze_estimation_session = onnxruntime.InferenceSession("./models/gaze_estimation.onnx")
+    providers = ['CPUExecutionProvider']
+    face_detection_session = onnxruntime.InferenceSession("./models/face_detection.onnx", providers=providers)
+    landmark_detection_session = onnxruntime.InferenceSession("./models/landmark_detection.onnx", providers=providers)
+    gaze_estimation_session = onnxruntime.InferenceSession("./models/gaze_estimation.onnx", providers=providers)
     
     cap = cv2.VideoCapture(0)
     timer = Timer()
