@@ -5,8 +5,8 @@ import cv2
 import numpy as np
 import onnxruntime
 
-from demo_utils import multiclass_nms, demo_postprocess, Timer, draw_gaze
-from smoother import GazeSmoother, LandmarkSmoother, OneEuroFilter
+from proxylessnas.proxyless_gaze.deployment.onnx.demo_utils import multiclass_nms, demo_postprocess, Timer, draw_gaze
+from proxylessnas.proxyless_gaze.deployment.onnx.smoother import GazeSmoother, LandmarkSmoother, OneEuroFilter
 
 face_model = np.float32([
     [-63.833572,  63.223045,  41.1674  ], # RIGHT_EYEBROW_RIGHT,
@@ -144,7 +144,7 @@ def normalizeDataForInference(img, hr, ht):
              data.append(R)
     return data
 
-def detect_face(img, session, score_thr=0.5, input_shape=(160, 128)) -> np.ndarray:
+def detect_face(img, session, score_thr=0.5, input_shape=(160, 128), timer=Timer()) -> np.ndarray:
     img, ratio = yolox_preprocess(img, input_shape)
     ort_inputs = {session.get_inputs()[0].name: img[None, :, :, :]}
     timer.start_record("face_detection")
@@ -168,7 +168,7 @@ def detect_face(img, session, score_thr=0.5, input_shape=(160, 128)) -> np.ndarr
     else:
         return None
 
-def detect_landmark(img, face, session) -> np.ndarray:
+def detect_landmark(img, face, session, timer=Timer()) -> np.ndarray:
     height, width = img.shape[:2]
     x1, y1, x2, y2 = map(int, face[:4])
     w = x2 - x1 + 1
@@ -212,7 +212,7 @@ def detect_landmark(img, face, session) -> np.ndarray:
     pre_landmark[:, 1] += y1
     return pre_landmark, landmark_on_cropped, cropped
 
-def estimate_gaze(img, landmark, session) -> np.ndarray:
+def estimate_gaze(img, landmark, session, timer=Timer()) -> np.ndarray:
     timer.start_record("gaze_estimation_preprocess")
     rvec, tvec = estimateHeadPose(landmark)
     data = normalizeDataForInference(img, rvec, tvec)
@@ -311,15 +311,15 @@ if __name__ == '__main__':
         CURRENT_TIMESTAMP = timer.get_current_timestamp()
         cnt += 1
         if cnt % 2 == 1:
-            faces = detect_face(frame, face_detection_session)
+            faces = detect_face(frame, face_detection_session, timer)
         if faces is not None:
             face = faces[0]
             x1, y1, x2, y2 = face[:4]
             [[x1,y1],[x2,y2]] = bbox_smoother([[x1,y1],[x2,y2]], t=CURRENT_TIMESTAMP)
             face = np.array([x1,y1,x2,y2,face[-1]])
-            landmark, landmark_on_cropped, cropped = detect_landmark(frame, face, landmark_detection_session)
+            landmark, landmark_on_cropped, cropped = detect_landmark(frame, face, landmark_detection_session, timer)
             landmark = landmark_smoother(landmark, t=CURRENT_TIMESTAMP)
-            gaze_pitchyaw, rvec, tvec = estimate_gaze(frame, landmark, gaze_estimation_session)
+            gaze_pitchyaw, rvec, tvec = estimate_gaze(frame, landmark, gaze_estimation_session, timer)
             gaze_pitchyaw = gaze_smoother(gaze_pitchyaw, t=CURRENT_TIMESTAMP)
             timer.start_record("visualize")
             show_frame = visualize(show_frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
