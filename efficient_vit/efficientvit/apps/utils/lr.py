@@ -6,7 +6,7 @@ import math
 
 import torch
 
-from efficientvit.models.utils.list import val2list
+from efficient_vit.efficientvit.models.utils.list import val2list
 
 __all__ = ["CosineLRwithWarmup"]
 

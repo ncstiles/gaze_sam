@@ -11,8 +11,8 @@ from torchvision import datasets, transforms
 from torchvision.transforms.functional import InterpolationMode
 from tqdm import tqdm
 
-from efficientvit.apps.utils import AverageMeter
-from efficientvit.cls_model_zoo import create_cls_model
+from efficient_vit.efficientvit.apps.utils import AverageMeter
+from efficient_vit.efficientvit.cls_model_zoo import create_cls_model
 
 
 def accuracy(output: torch.Tensor, target: torch.Tensor, topk=(1,)) -> list[torch.Tensor]:

@@ -2,7 +2,7 @@
 # Han Cai, Junyan Li, Muyan Hu, Chuang Gan, Song Han
 # International Conference on Computer Vision (ICCV), 2023
 
-from efficientvit.models.efficientvit import (
+from efficient_vit.efficientvit.models.efficientvit import (
     EfficientViTCls,
     efficientvit_cls_b0,
     efficientvit_cls_b1,
@@ -12,8 +12,8 @@ from efficientvit.models.efficientvit import (
     efficientvit_cls_l2,
     efficientvit_cls_l3,
 )
-from efficientvit.models.nn.norm import set_norm_eps
-from efficientvit.models.utils import load_state_dict_from_file
+from efficient_vit.efficientvit.models.nn.norm import set_norm_eps
+from efficient_vit.efficientvit.models.utils import load_state_dict_from_file
 
 __all__ = ["create_cls_model"]
 

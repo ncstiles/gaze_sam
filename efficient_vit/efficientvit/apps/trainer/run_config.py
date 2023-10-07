@@ -7,7 +7,7 @@ import json
 import numpy as np
 import torch.nn as nn
 
-from efficientvit.apps.utils import CosineLRwithWarmup, build_optimizer
+from efficient_vit.efficientvit.apps.utils import CosineLRwithWarmup, build_optimizer
 
 __all__ = ["Scheduler", "RunConfig"]
 

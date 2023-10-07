@@ -13,10 +13,10 @@ import yaml
 from matplotlib.patches import Rectangle
 from PIL import Image
 
-from efficientvit.apps.utils import parse_unknown_args
-from efficientvit.models.efficientvit.sam import EfficientViTSamAutomaticMaskGenerator, EfficientViTSamPredictor
-from efficientvit.models.utils import build_kwargs_from_config
-from efficientvit.sam_model_zoo import create_sam_model
+from efficient_vit.efficientvit.apps.utils import parse_unknown_args
+from efficient_vit.efficientvit.models.efficientvit.sam import EfficientViTSamAutomaticMaskGenerator, EfficientViTSamPredictor
+from efficient_vit.efficientvit.models.utils import build_kwargs_from_config
+from efficient_vit.efficientvit.sam_model_zoo import create_sam_model
 
 
 def load_image(data_path: str, mode="rgb") -> np.ndarray:

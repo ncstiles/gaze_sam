@@ -17,8 +17,8 @@ from segment_anything.utils.amg import build_all_layer_point_grids
 from segment_anything.utils.transforms import ResizeLongestSide
 from torchvision.transforms.functional import resize, to_pil_image
 
-from efficientvit.models.efficientvit.backbone import EfficientViTBackbone, EfficientViTLargeBackbone
-from efficientvit.models.nn import (
+from efficient_vit.efficientvit.models.efficientvit.backbone import EfficientViTBackbone, EfficientViTLargeBackbone
+from efficient_vit.efficientvit.models.nn import (
     ConvLayer,
     DAGBlock,
     FusedMBConv,
@@ -29,7 +29,7 @@ from efficientvit.models.nn import (
     UpSampleLayer,
     build_norm,
 )
-from efficientvit.models.utils import get_device
+from efficient_vit.efficientvit.models.utils import get_device
 
 __all__ = [
     "SamPad",
@@ -513,7 +513,7 @@ def build_efficientvit_sam(image_encoder: EfficientViTSamImageEncoder, image_siz
 
 
 def efficientvit_sam_l0(image_size: int = 512, **kwargs) -> EfficientViTSam:
-    from efficientvit.models.efficientvit.backbone import efficientvit_backbone_l0
+    from efficient_vit.efficientvit.models.efficientvit.backbone import efficientvit_backbone_l0
 
     backbone = efficientvit_backbone_l0(**kwargs)
 
@@ -531,7 +531,7 @@ def efficientvit_sam_l0(image_size: int = 512, **kwargs) -> EfficientViTSam:
 
 
 def efficientvit_sam_l1(image_size: int = 512, **kwargs) -> EfficientViTSam:
-    from efficientvit.models.efficientvit.backbone import efficientvit_backbone_l1
+    from efficient_vit.efficientvit.models.efficientvit.backbone import efficientvit_backbone_l1
 
     backbone = efficientvit_backbone_l1(**kwargs)
 
@@ -549,7 +549,7 @@ def efficientvit_sam_l1(image_size: int = 512, **kwargs) -> EfficientViTSam:
 
 
 def efficientvit_sam_l2(image_size: int = 512, **kwargs) -> EfficientViTSam:
-    from efficientvit.models.efficientvit.backbone import efficientvit_backbone_l2
+    from efficient_vit.efficientvit.models.efficientvit.backbone import efficientvit_backbone_l2
 
     backbone = efficientvit_backbone_l2(**kwargs)
 

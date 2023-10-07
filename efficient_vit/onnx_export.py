@@ -6,10 +6,10 @@ import argparse
 
 import torch
 
-from efficientvit.apps.utils import export_onnx
-from efficientvit.cls_model_zoo import create_cls_model
-from efficientvit.models.utils import val2tuple
-from efficientvit.seg_model_zoo import create_seg_model
+from efficient_vit.efficientvit.apps.utils import export_onnx
+from efficient_vit.efficientvit.cls_model_zoo import create_cls_model
+from efficient_vit.efficientvit.models.utils import val2tuple
+from efficient_vit.efficientvit.seg_model_zoo import create_seg_model
 
 
 def main():

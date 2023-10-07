@@ -16,9 +16,9 @@ from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from tqdm import tqdm
 
-from efficientvit.apps.utils import AverageMeter
-from efficientvit.models.utils import resize
-from efficientvit.seg_model_zoo import create_seg_model
+from efficient_vit.efficientvit.apps.utils import AverageMeter
+from efficient_vit.efficientvit.models.utils import resize
+from efficient_vit.efficientvit.seg_model_zoo import create_seg_model
 
 
 class Resize(object):

@@ -8,8 +8,8 @@ import warnings
 import torch.utils.data
 from torch.utils.data.distributed import DistributedSampler
 
-from efficientvit.apps.data_provider.random_resolution import RRSController
-from efficientvit.models.utils import val2tuple
+from efficient_vit.efficientvit.apps.data_provider.random_resolution import RRSController
+from efficient_vit.efficientvit.models.utils import val2tuple
 
 __all__ = ["parse_image_size", "random_drop_data", "DataProvider"]
 
@@ -117,7 +117,7 @@ class DataProvider:
         if dataset is None:
             return None
         if isinstance(self.image_size, list) and train:
-            from efficientvit.apps.data_provider.random_resolution._data_loader import RRSDataLoader
+            from efficient_vit.efficientvit.apps.data_provider.random_resolution._data_loader import RRSDataLoader
 
             dataloader_class = RRSDataLoader
         else:

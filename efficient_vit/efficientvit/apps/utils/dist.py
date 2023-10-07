@@ -6,7 +6,7 @@ import torch
 import torch.distributed
 from torchpack import distributed
 
-from efficientvit.models.utils.list import list_mean, list_sum
+from efficient_vit.efficientvit.models.utils.list import list_mean, list_sum
 
 __all__ = ["sync_tensor"]
 

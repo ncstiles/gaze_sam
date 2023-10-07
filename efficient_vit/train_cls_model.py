@@ -5,12 +5,12 @@
 import argparse
 import os
 
-from efficientvit.apps import setup
-from efficientvit.apps.utils import dump_config, parse_unknown_args
-from efficientvit.cls_model_zoo import create_cls_model
-from efficientvit.clscore.data_provider import ImageNetDataProvider
-from efficientvit.clscore.trainer import ClsRunConfig, ClsTrainer
-from efficientvit.models.nn.drop import apply_drop_func
+from efficient_vit.efficientvit.apps import setup
+from efficient_vit.efficientvit.apps.utils import dump_config, parse_unknown_args
+from efficient_vit.efficientvit.cls_model_zoo import create_cls_model
+from efficient_vit.efficientvit.clscore.data_provider import ImageNetDataProvider
+from efficient_vit.efficientvit.clscore.trainer import ClsRunConfig, ClsTrainer
+from efficient_vit.efficientvit.models.nn.drop import apply_drop_func
 
 parser = argparse.ArgumentParser()
 parser.add_argument("config", metavar="FILE", help="config file")

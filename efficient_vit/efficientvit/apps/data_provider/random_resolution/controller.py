@@ -8,7 +8,7 @@ import torch
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as F
 
-from efficientvit.models.utils import torch_random_choices
+from efficient_vit.efficientvit.models.utils import torch_random_choices
 
 __all__ = [
     "RRSController",

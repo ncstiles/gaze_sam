@@ -9,11 +9,11 @@ import os
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
 
-from efficientvit.apps.data_provider import DataProvider
-from efficientvit.apps.data_provider.augment import RandAug
-from efficientvit.apps.data_provider.random_resolution import MyRandomResizedCrop, get_interpolate
-from efficientvit.apps.utils import partial_update_config
-from efficientvit.models.utils import val2list
+from efficient_vit.efficientvit.apps.data_provider import DataProvider
+from efficient_vit.efficientvit.apps.data_provider.augment import RandAug
+from efficient_vit.efficientvit.apps.data_provider.random_resolution import MyRandomResizedCrop, get_interpolate
+from efficient_vit.efficientvit.apps.utils import partial_update_config
+from efficient_vit.efficientvit.models.utils import val2list
 
 __all__ = ["ImageNetDataProvider"]
 

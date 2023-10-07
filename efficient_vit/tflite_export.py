@@ -7,10 +7,10 @@ import argparse
 import torch
 from tinynn.converter import TFLiteConverter
 
-from efficientvit.cls_model_zoo import create_cls_model
-from efficientvit.models.nn.ops import UpSampleLayer
-from efficientvit.models.utils import val2tuple
-from efficientvit.seg_model_zoo import create_seg_model
+from efficient_vit.efficientvit.cls_model_zoo import create_cls_model
+from efficient_vit.efficientvit.models.nn.ops import UpSampleLayer
+from efficient_vit.efficientvit.models.utils import val2tuple
+from efficient_vit.efficientvit.seg_model_zoo import create_seg_model
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--export_path", type=str)

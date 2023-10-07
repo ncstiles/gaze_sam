@@ -8,7 +8,7 @@ import math
 import torch
 import torch.nn as nn
 
-from efficientvit.models.utils import is_parallel
+from efficient_vit.efficientvit.models.utils import is_parallel
 
 __all__ = ["EMA"]
 

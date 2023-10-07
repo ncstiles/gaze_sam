@@ -5,9 +5,9 @@
 import torch
 import torch.nn as nn
 
-from efficientvit.models.efficientvit.backbone import EfficientViTBackbone, EfficientViTLargeBackbone
-from efficientvit.models.nn import ConvLayer, LinearLayer, OpSequential
-from efficientvit.models.utils import build_kwargs_from_config
+from efficient_vit.efficientvit.models.efficientvit.backbone import EfficientViTBackbone, EfficientViTLargeBackbone
+from efficient_vit.efficientvit.models.nn import ConvLayer, LinearLayer, OpSequential
+from efficient_vit.efficientvit.models.utils import build_kwargs_from_config
 
 __all__ = [
     "EfficientViTCls",
@@ -62,7 +62,7 @@ class EfficientViTCls(nn.Module):
 
 
 def efficientvit_cls_b0(**kwargs) -> EfficientViTCls:
-    from efficientvit.models.efficientvit.backbone import efficientvit_backbone_b0
+    from efficient_vit.efficientvit.models.efficientvit.backbone import efficientvit_backbone_b0
 
     backbone = efficientvit_backbone_b0(**kwargs)
 
@@ -76,7 +76,7 @@ def efficientvit_cls_b0(**kwargs) -> EfficientViTCls:
 
 
 def efficientvit_cls_b1(**kwargs) -> EfficientViTCls:
-    from efficientvit.models.efficientvit.backbone import efficientvit_backbone_b1
+    from efficient_vit.efficientvit.models.efficientvit.backbone import efficientvit_backbone_b1
 
     backbone = efficientvit_backbone_b1(**kwargs)
 
@@ -90,7 +90,7 @@ def efficientvit_cls_b1(**kwargs) -> EfficientViTCls:
 
 
 def efficientvit_cls_b2(**kwargs) -> EfficientViTCls:
-    from efficientvit.models.efficientvit.backbone import efficientvit_backbone_b2
+    from efficient_vit.efficientvit.models.efficientvit.backbone import efficientvit_backbone_b2
 
     backbone = efficientvit_backbone_b2(**kwargs)
 
@@ -104,7 +104,7 @@ def efficientvit_cls_b2(**kwargs) -> EfficientViTCls:
 
 
 def efficientvit_cls_b3(**kwargs) -> EfficientViTCls:
-    from efficientvit.models.efficientvit.backbone import efficientvit_backbone_b3
+    from efficient_vit.efficientvit.models.efficientvit.backbone import efficientvit_backbone_b3
 
     backbone = efficientvit_backbone_b3(**kwargs)
 
@@ -118,7 +118,7 @@ def efficientvit_cls_b3(**kwargs) -> EfficientViTCls:
 
 
 def efficientvit_cls_l1(**kwargs) -> EfficientViTCls:
-    from efficientvit.models.efficientvit.backbone import efficientvit_backbone_l1
+    from efficient_vit.efficientvit.models.efficientvit.backbone import efficientvit_backbone_l1
 
     backbone = efficientvit_backbone_l1(**kwargs)
 
@@ -133,7 +133,7 @@ def efficientvit_cls_l1(**kwargs) -> EfficientViTCls:
 
 
 def efficientvit_cls_l2(**kwargs) -> EfficientViTCls:
-    from efficientvit.models.efficientvit.backbone import efficientvit_backbone_l2
+    from efficient_vit.efficientvit.models.efficientvit.backbone import efficientvit_backbone_l2
 
     backbone = efficientvit_backbone_l2(**kwargs)
 
@@ -148,7 +148,7 @@ def efficientvit_cls_l2(**kwargs) -> EfficientViTCls:
 
 
 def efficientvit_cls_l3(**kwargs) -> EfficientViTCls:
-    from efficientvit.models.efficientvit.backbone import efficientvit_backbone_l3
+    from efficient_vit.efficientvit.models.efficientvit.backbone import efficientvit_backbone_l3
 
     backbone = efficientvit_backbone_l3(**kwargs)
 

@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.nn.modules.batchnorm import _BatchNorm
 
-from efficientvit.models.utils import build_kwargs_from_config
+from efficient_vit.efficientvit.models.utils import build_kwargs_from_config
 
 __all__ = ["LayerNorm2d", "build_norm", "reset_bn", "set_norm_eps"]
 
@@ -53,8 +53,8 @@ def reset_bn(
     import torchpack.distributed as dist
     from tqdm import tqdm
 
-    from efficientvit.apps.utils import AverageMeter, sync_tensor
-    from efficientvit.models.utils import get_device, list_join
+    from efficient_vit.efficientvit.apps.utils import AverageMeter, sync_tensor
+    from efficient_vit.efficientvit.models.utils import get_device, list_join
 
     bn_mean = {}
     bn_var = {}

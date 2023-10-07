@@ -2,7 +2,7 @@
 # Han Cai, Junyan Li, Muyan Hu, Chuang Gan, Song Han
 # International Conference on Computer Vision (ICCV), 2023
 
-from efficientvit.apps.trainer.run_config import RunConfig
+from efficient_vit.efficientvit.apps.trainer.run_config import RunConfig
 
 __all__ = ["ClsRunConfig"]
 

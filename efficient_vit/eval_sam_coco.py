@@ -8,8 +8,8 @@ import numpy as np
 from torchvision.datasets import CocoDetection
 from tqdm import tqdm
 
-from efficientvit.models.efficientvit.sam import EfficientViTSamPredictor
-from efficientvit.sam_model_zoo import create_sam_model
+from efficient_vit.efficientvit.models.efficientvit.sam import EfficientViTSamPredictor
+from efficient_vit.efficientvit.sam_model_zoo import create_sam_model
 
 
 def bbox_xywh_to_xyxy(bbox: list[int]) -> list[int]:

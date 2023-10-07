@@ -4,8 +4,8 @@
 
 import torch.distributions
 
-from efficientvit.apps.data_provider.augment import rand_bbox
-from efficientvit.models.utils.random import torch_randint, torch_shuffle
+from efficient_vit.efficientvit.apps.data_provider.augment import rand_bbox
+from efficient_vit.efficientvit.models.utils.random import torch_randint, torch_shuffle
 
 __all__ = ["apply_mixup", "mixup", "cutmix"]
 

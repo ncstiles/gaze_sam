@@ -11,10 +11,10 @@ import torch.nn as nn
 import torchpack.distributed as dist
 from tqdm import tqdm
 
-from efficientvit.apps.trainer import Trainer
-from efficientvit.apps.utils import AverageMeter, sync_tensor
-from efficientvit.clscore.trainer.utils import accuracy, apply_mixup, label_smooth
-from efficientvit.models.utils import list_join, list_mean, torch_random_choices
+from efficient_vit.efficientvit.apps.trainer import Trainer
+from efficient_vit.efficientvit.apps.utils import AverageMeter, sync_tensor
+from efficient_vit.efficientvit.clscore.trainer.utils import accuracy, apply_mixup, label_smooth
+from efficient_vit.efficientvit.models.utils import list_join, list_mean, torch_random_choices
 
 __all__ = ["ClsTrainer"]
 
