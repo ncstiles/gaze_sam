@@ -213,9 +213,19 @@ def draw_gaze(image_in, eye_pos, pitchyaw, length=15.0, thickness=2, color=(0, 0
         image_out = cv2.cvtColor(image_out, cv2.COLOR_GRAY2BGR)
     dx = -length * np.sin(pitchyaw[1]) * np.cos(pitchyaw[0])
     dy = -length * np.sin(pitchyaw[0])
-    cv2.arrowedLine(image_out, tuple(np.round(eye_pos).astype(np.int32)),
-                   tuple(np.round([eye_pos[0] + dx, eye_pos[1] + dy]).astype(int)), color,
-                   thickness, cv2.LINE_AA, tipLength=0.2)
+
+    arrow_head = tuple(np.round(eye_pos).astype(np.int32))
+    arrow_tail = tuple(np.round([eye_pos[0] + dx, eye_pos[1] + dy]).astype(int))
+
+    cv2.arrowedLine(image_out, 
+                    arrow_head,
+                    arrow_tail, 
+                    color,
+                    thickness, 
+                    cv2.LINE_AA, 
+                    tipLength=0.2)
+
+    cv2.circle(image_out, arrow_tail, 2, (255, 0, 0), thickness=5)
 
     return image_out
 
