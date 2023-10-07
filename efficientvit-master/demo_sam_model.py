@@ -28,8 +28,10 @@ def load_image(data_path: str, mode="rgb") -> np.ndarray:
 
 def cat_images(image_list: list[np.ndarray], axis=1, pad=20) -> np.ndarray:
     shape_list = [image.shape for image in image_list]
-    max_h = max([shape[0] for shape in shape_list]) + pad * 2
-    max_w = max([shape[1] for shape in shape_list]) + pad * 2
+    # max_h = max([shape[0] for shape in shape_list]) + pad * 2
+    # max_w = max([shape[1] for shape in shape_list]) + pad * 2
+    max_h = max([shape[0] for shape in shape_list])
+    max_w = max([shape[1] for shape in shape_list])
 
     for i, image in enumerate(image_list):
         canvas = np.zeros((max_h, max_w, 3), dtype=np.uint8)
@@ -135,7 +137,9 @@ def main():
     opt = parse_unknown_args(opt)
 
     # build model
-    efficientvit_sam = create_sam_model(args.model, True, args.weight_url).cuda().eval()
+    # efficientvit_sam = create_sam_model(args.model, True, args.weight_url).cuda().eval()
+    efficientvit_sam = create_sam_model(args.model, True, args.weight_url).eval()
+
     efficientvit_sam_predictor = EfficientViTSamPredictor(efficientvit_sam)
     efficientvit_mask_generator = EfficientViTSamAutomaticMaskGenerator(
         efficientvit_sam, **build_kwargs_from_config(opt, EfficientViTSamAutomaticMaskGenerator)
