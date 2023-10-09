@@ -192,8 +192,8 @@ def get_pixels_on_line(img, start_point, end_point):
     x_vals.append(x2)
     y_vals.append(y2)
 
-    for x, y in zip(x_vals, y_vals):
-        cv2.circle(img, (x,y), 1, (255, 0, 0), thickness=1)
+    # for x, y in zip(x_vals, y_vals):
+    #     cv2.circle(img, (x,y), 1, (255, 0, 0), thickness=1)
 
     mask = np.zeros((H, W))
     mask[y_vals, x_vals] = 1
@@ -222,19 +222,21 @@ def show_anns(anns, line_mask, bbs, center_pix) -> None:
     if len(anns) == 0:
         return
     sorted_anns = sorted(anns, key=(lambda x: x["area"]), reverse=True)
-    ax = plt.gca()
-    ax.set_autoscale_on(False)
+
 
     img = np.ones((sorted_anns[0]["segmentation"].shape[0], sorted_anns[0]["segmentation"].shape[1], 4))
     img[:, :, 3] = 0
+    cv2.circle(img, (0,0), 5, (0, 255, 0), thickness=20)
 
     percentage_to_mask = {}
     for i, ann in enumerate(sorted_anns):
         m = ann["segmentation"]
         # if np.any(m & line_mask) and check_not_self(m, center_pix): # object crosses line of sight
-        if np.any(m & line_mask): # object crosses line of sight
+        intersection = np.logical_and(m, line_mask)
+        ix = np.argwhere(intersection)
+        if len(ix) > 0: # object crosses line of sight
             percentage_intersection = intersects_bb(m, bbs)
-            percentage_to_mask[percentage_intersection] = i # v low chance of same thing, in this case, j replace
+            percentage_to_mask[percentage_intersection] = (i, ix[0]) # v low chance of same thing, in this case, j replace
                 
     color_mask = np.concatenate([[255, 0, 0], [0.35]])
 
@@ -244,9 +246,18 @@ def show_anns(anns, line_mask, bbs, center_pix) -> None:
     else:
         max_percentage = max(percentage_to_mask)
         print("max percentage_overlap:", max_percentage, percentage_to_mask)
-        mask = sorted_anns[percentage_to_mask[max_percentage]]['segmentation']
+        mask_ix, point = percentage_to_mask[max_percentage]
+        mask = sorted_anns[mask_ix]['segmentation']
         img[mask] = color_mask
-        
+        print("point:", point)
+        # p = (point[0], img.shape[0] - point[1])
+        p = (point[1], point[0])
+        plt.scatter(*p, c='green', marker = '*', s= 100)
+        # cv2.circle(img, (point[0], img.shape[0] - point[1]), 2, (0, 255, 0), thickness=10)
+
+
+    ax = plt.gca()
+    ax.set_autoscale_on(False) 
     
     img[line_mask] = np.concatenate([[0, 255, 0], [0.5]])
 
@@ -265,33 +276,36 @@ def all_visualize(img, start_point, end_point):
     bb_res = bb_model(img, stream=True)
 
     print("starting to load the mask")
-    masks = efficientvit_mask_generator.generate(img)
-    with open("mask_workpls.pkl", "wb") as f:
-        pickle.dump(masks, f)
+    # masks = efficientvit_mask_generator.generate(img)
+    # with open("mask_workpls.pkl", "wb") as f:
+    #     pickle.dump(masks, f)
 
     with open("mask_workpls.pkl", 'rb') as f:
         masks = pickle.load(f)
 
     print("done loading the mask:")
 
-    cv2.circle(img_out, start_point, 2, (255, 0, 0), thickness=5)
-    cv2.circle(img_out, end_point, 2, (255, 0, 0), thickness=5)
+    # cv2.circle(img_out, start_point, 2, (255, 0, 0), thickness=5)
+    # cv2.circle(img_out, end_point, 2, (255, 0, 0), thickness=5)
+
 
     bounding_box_coords = []
     for res in bb_res:
         for bounding_box in res.boxes.xyxy:
             x1, y1, x2, y2 = [int(coord.item()) for coord in bounding_box]
             bounding_box_coords.append([x1, y1, x2, y2])
-            cv2.rectangle(img, (x1,y1), (x2,y2), (0, 255, 0), 2)
+            # cv2.rectangle(img, (x1,y1), (x2,y2), (0, 255, 0), 2)
 
     line_mask = get_pixels_on_line(img, start_point, end_point)
 
     plt.figure(figsize=(20, 20))
-    plt.imshow(img)
+    plt.imshow(img) # after adding image cv2 stuff doesn't render
 
     
     print("img shape:", img.shape)
+
     show_anns(masks, line_mask, bounding_box_coords, start_point)
+    cv2.circle(img, (0,0), 5, (0, 255, 0), thickness=20)
 
     plt.axis("off")
 
