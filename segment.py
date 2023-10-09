@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import yaml
 from matplotlib.patches import Rectangle
 from PIL import Image
+from ultralytics import YOLO
 
 from efficient_vit.demo_sam_model import draw_scatter, draw_binary_mask, cat_images, load_image, show_anns
 from efficient_vit.efficientvit.models.efficientvit.sam import EfficientViTSamAutomaticMaskGenerator, EfficientViTSamPredictor
@@ -145,6 +146,10 @@ def get_pixels_on_line(img, start_point, end_point):
     x1, y1 = start_point
     x2, y2 = find_edge_intersection(W, H, start_point, end_point)
 
+    print("H:", H, "W:", W)
+
+    print("edge intersection:", x2, y2)
+
     # Calculate differences and absolute differences between points
     dx = abs(x2 - x1)
     dy = abs(y2 - y1)
@@ -168,7 +173,8 @@ def get_pixels_on_line(img, start_point, end_point):
     x_vals, y_vals = [], []
 
     # Iterate through the line and add pixels to the result
-    while 0<=x<H and 0<=y<W:
+    # while 0<=x<H and 0<=y<W:
+    while 0<=x<W and 0<=y<H:
         # Add the current pixel to the list
         x_vals.append(x)
         y_vals.append(y)
@@ -187,14 +193,32 @@ def get_pixels_on_line(img, start_point, end_point):
     y_vals.append(y2)
 
     for x, y in zip(x_vals, y_vals):
-        cv2.circle(img, (x,y), 1, (255, 0, 0), thickness=5)
+        cv2.circle(img, (x,y), 1, (255, 0, 0), thickness=1)
 
     mask = np.zeros((H, W))
     mask[y_vals, x_vals] = 1
 
     return mask.astype(bool)
 
-def show_anns(anns, line_mask) -> None:
+def intersects_bb(mask, bbs): # get the largest percentage overlap that this mask has with any of the bounding boxes
+    best_percentage = 0
+
+    for bb in bbs:
+        x1, y1, x2, y2 = bb
+        roi = mask[y1:y2+1, x1:x2+1]
+        
+        intersection_area = np.count_nonzero(roi)
+        bb_area = abs((x2-x1+1) * (y2-y1+1))
+        percentage_overlap = intersection_area / bb_area * 100
+        best_percentage = max(best_percentage, percentage_overlap)
+        
+    return best_percentage
+
+def check_not_self(mask, eye_loc):
+    rev = (eye_loc[1], eye_loc[0])
+    return mask[rev] != 1
+
+def show_anns(anns, line_mask, bbs, center_pix) -> None:
     if len(anns) == 0:
         return
     sorted_anns = sorted(anns, key=(lambda x: x["area"]), reverse=True)
@@ -203,44 +227,74 @@ def show_anns(anns, line_mask) -> None:
 
     img = np.ones((sorted_anns[0]["segmentation"].shape[0], sorted_anns[0]["segmentation"].shape[1], 4))
     img[:, :, 3] = 0
-    for ann in sorted_anns:
+
+    percentage_to_mask = {}
+    for i, ann in enumerate(sorted_anns):
         m = ann["segmentation"]
-        print("m.shape:", m.shape, m[0][1], type(m[0][1]))
-        print("line mask shape:", line_mask.shape, line_mask[0][1], type(line_mask[0][1]) )
-        color_mask = np.concatenate([np.random.random(3), [0.35]])
+        # if np.any(m & line_mask) and check_not_self(m, center_pix): # object crosses line of sight
         if np.any(m & line_mask): # object crosses line of sight
-            img[m] = color_mask
+            percentage_intersection = intersects_bb(m, bbs)
+            percentage_to_mask[percentage_intersection] = i # v low chance of same thing, in this case, j replace
+                
+    color_mask = np.concatenate([[255, 0, 0], [0.35]])
+
+    if len(percentage_to_mask) == 0:
+        print("EMPTY PERCENTAGE TO MASK???")
     
-    img[line_mask] = np.concatenate([[255, 0, 0], [0.5]])
+    else:
+        max_percentage = max(percentage_to_mask)
+        print("max percentage_overlap:", max_percentage, percentage_to_mask)
+        mask = sorted_anns[percentage_to_mask[max_percentage]]['segmentation']
+        img[mask] = color_mask
+        
+    
+    img[line_mask] = np.concatenate([[0, 255, 0], [0.5]])
+
     print(f"num masks: {len(sorted_anns)}")
-
     print("img.shape:", img.shape)
-    print(img)
-
 
     ax.imshow(img) # this is important to keep the segmentations on the img
+    
+def all_visualize(img, start_point, end_point):
+    img_out = img
+    if len(img_out.shape) == 2 or img_out.shape[2] == 1:
+        img_out = cv2.cvtColor(img_out, cv2.COLOR_GRAY2BGR)
 
+    print('img out.size: ', img_out.shape)
 
-def all_visualize(img):
+    bb_res = bb_model(img, stream=True)
 
-    # masks = efficientvit_mask_generator.generate(img)
-    # with open("masks.pkl", "wb") as f:
-    #     pickle.dump(masks, f)
+    print("starting to load the mask")
+    masks = efficientvit_mask_generator.generate(img)
+    with open("mask_workpls.pkl", "wb") as f:
+        pickle.dump(masks, f)
 
-    with open("masks.pkl", 'rb') as f:
+    with open("mask_workpls.pkl", 'rb') as f:
         masks = pickle.load(f)
+
+    print("done loading the mask:")
+
+    cv2.circle(img_out, start_point, 2, (255, 0, 0), thickness=5)
+    cv2.circle(img_out, end_point, 2, (255, 0, 0), thickness=5)
+
+    bounding_box_coords = []
+    for res in bb_res:
+        for bounding_box in res.boxes.xyxy:
+            x1, y1, x2, y2 = [int(coord.item()) for coord in bounding_box]
+            bounding_box_coords.append([x1, y1, x2, y2])
+            cv2.rectangle(img, (x1,y1), (x2,y2), (0, 255, 0), 2)
+
+    line_mask = get_pixels_on_line(img, start_point, end_point)
 
     plt.figure(figsize=(20, 20))
     plt.imshow(img)
 
-    start_point = (555, 287)
-    end_point = (273, 308)
-    line_mask = get_pixels_on_line(img, start_point, end_point)
     
     print("img shape:", img.shape)
+    show_anns(masks, line_mask, bounding_box_coords, start_point)
 
-    show_anns(masks, line_mask)
     plt.axis("off")
+
     plt.savefig(f"vis_{time.time()}.png", format="png", dpi=300, bbox_inches="tight", pad_inches=0.0)
 
 
@@ -266,5 +320,19 @@ if __name__ == '__main__':
     efficientvit_mask_generator = EfficientViTSamAutomaticMaskGenerator(
         efficientvit_sam, **build_kwargs_from_config(opt, EfficientViTSamAutomaticMaskGenerator))
 
-    img = load_image("nico.png")
-    img = all_visualize(img)
+    w, h = 1280, 720
+    bb_model = YOLO("yolov8n.pt")
+    img = load_image("workpls.png")
+    img = cv2.resize(img, (w, h))
+
+    # start_point = (555, 287)
+    # end_point = (273, 308)
+    # start_point = (683, 247)
+    # end_point = (877, 311)
+    start_point = (746, 435)
+    end_point = (930, 434)
+    # start_point = (663, 175)
+    # end_point = (525, 167)
+    print("original image size:", img.shape)
+    img = all_visualize(img, start_point, end_point)
+

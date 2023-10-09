@@ -20,19 +20,17 @@ from proxylessnas.proxyless_gaze.deployment.onnx.main import *
 
 def draw_gaze(image_in, arrow_head, arrow_tail, thickness=1, color=(0, 0, 255)):
     """Draw gaze angle on given image with a given eye positions."""
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    color = (0,0,0)
     image_out = image_in
     if len(image_out.shape) == 2 or image_out.shape[2] == 1:
         image_out = cv2.cvtColor(image_out, cv2.COLOR_GRAY2BGR)
 
-    cv2.arrowedLine(image_out, 
-                    arrow_head,
-                    arrow_tail, 
-                    color,
-                    thickness, 
-                    cv2.LINE_AA, 
-                    tipLength=0.2)
+    cv2.arrowedLine(imagnew.il, 2, (255, 0, 0), thickness=5)
+    
+    cv2.putText(image_out, f"head: {arrow_head[0]},{arrow_head[1]}", (10,300), font, 0.8, color, 2)
+    cv2.putText(image_out, f"tail: {arrow_tail[0]},{arrow_tail[1]}", (10,330), font, 0.8, color, 2)
 
-    cv2.circle(image_out, arrow_tail, 2, (255, 0, 0), thickness=5)
 
 
 def get_gaze_focus(img, eye_pos, pitchyaw, length):
@@ -44,7 +42,7 @@ def get_gaze_focus(img, eye_pos, pitchyaw, length):
 
     return arrow_head, arrow_tail
 
-def segment_image(img, focus_point):
+def segment_point(img, focus_point):
     H, W, _ = img.shape
 
     tmp_file = f".tmp_{time.time()}.png"
@@ -74,16 +72,129 @@ def segment_image(img, focus_point):
     return plots
 
 
-def visualize(img, gaze_pitchyaw):
+def point_visualize(img, gaze_pitchyaw):
     if gaze_pitchyaw is not None:
         eye_pos = landmark[-2:].mean(0)
         head, focus_point = get_gaze_focus(img, eye_pos, gaze_pitchyaw, length=300)
-        img = segment_image(img, focus_point)
+        # img = segment_point(img, focus_point)
         draw_gaze(img, head, focus_point)
+        get_pixels_on_line(img, head, focus_point)
     else:
-        print("no pitchyaw")
+        raise NotImplementedError
 
     return img
+
+def all_visualize(img, gaze_pitchyaw):
+    # masks = efficientvit_mask_generator.generate(img)
+    plt.figure(figsize=(20, 20))
+    plt.imshow(raw_image)
+    # show_anns(masks)
+    plt.axis("off")
+    plt.savefig(f"vis_{time.time()}.png", format="png", dpi=300, bbox_inches="tight", pad_inches=0.0)
+
+
+def find_edge_intersection(w, h, start, end):
+    x1, y1 = start
+    x, y = end
+
+    up = y <= y1
+    right = x >= x1
+
+    if abs(x) == abs(x1): # vertical case
+        if y < y1:
+            return (x, 0)
+        elif y == y1:
+            return start  # looking direct at ya
+        else:
+            return (x, h-1)
+
+    m = (y-y1) / (x-x1)
+    abs_m = abs(m)
+
+    avg_slope = h/w
+
+    if up and right: # Q1
+        new_x, new_y = w-1, 0
+    elif up and not right: #Q2
+        new_x, new_y = 0, 0
+    elif not up and right:
+        new_x, new_y = w-1, h-1
+    elif not up and not right:
+        new_x, new_y = 0, h-1
+    else:
+        print("ya screwed up")
+        raise Exception("didn't find edge point")
+
+    if abs_m < avg_slope: # flat slope, will intersect with left, right edge. find y
+        # eq: m * (x-start_x) + start_y
+        new_y = m * (new_x - x) + y
+    if abs_m > avg_slope: # tall slope, intersect with floor/ ceil. find x
+        # eq: 1/m * (y-start_y) + start_x
+        new_x = 1/m * (new_y - y) + x
+    
+    return int(new_x), int(new_y)
+    
+
+def get_pixels_on_line(img, start_point, end_point):
+    """
+    Get all pixel coordinates that lie on a line between start_point and end_point.
+
+    Parameters:
+    - img_shape: Tuple (height, width) representing the image dimensions.
+    - start_point: Tuple (x, y) representing the starting point of the line.
+    - end_point: Tuple (x, y) representing the ending point of the line.
+
+    Returns:
+    - List of (x, y) tuples representing the pixel coordinates on the line.
+    """
+    H, W = img.shape[:2]
+    x1, y1 = start_point
+    x2, y2 = find_edge_intersection(W, H, start_point, end_point)
+
+    # Calculate differences and absolute differences between points
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+
+    # Determine the direction along the x and y axes
+    if x1 < x2:
+        x_increment = 1
+    else:
+        x_increment = -1
+
+    if y1 < y2:
+        y_increment = 1
+    else:
+        y_increment = -1
+
+    # Initialize error values and the current position
+    error = dx - dy
+    x = x1
+    y = y1
+
+    x_vals, y_vals = [], []
+
+    # Iterate through the line and add pixels to the result
+    while 0<=x<H and 0<=y<W:
+        # Add the current pixel to the list
+        x_vals.append(x)
+        y_vals.append(y)
+
+        # Calculate error and next position
+        double_error = 2 * error
+        if double_error > -dy:
+            error -= dy
+            x += x_increment
+        if double_error < dx:
+            error += dx
+            y += y_increment
+
+    # Add the last pixel (end_point) to the list
+    x_vals.append(x2)
+    y_vals.append(y2)
+
+    # for x, y in zip(x_vals, y_vals):
+    #     cv2.circle(img, (x,y), 3, (255, 0, 0), thickness=5)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("onnxruntime demo")
@@ -131,7 +242,7 @@ if __name__ == '__main__':
         if not ret or frame is None:
             break
         timer.start_record("whole_pipeline")
-        show_frame = frame.copy()
+        img = frame.copy()
         
         CURRENT_TIMESTAMP = timer.get_current_timestamp()
         cnt += 1
@@ -147,17 +258,22 @@ if __name__ == '__main__':
             landmark = landmark_smoother(landmark, t=CURRENT_TIMESTAMP)
             gaze_pitchyaw, rvec, tvec = estimate_gaze(frame, landmark, gaze_estimation_session, timer=timer)
             gaze_pitchyaw = gaze_smoother(gaze_pitchyaw, t=CURRENT_TIMESTAMP)
+            
             timer.start_record("visualize")
-            show_frame = visualize(show_frame, gaze_pitchyaw)
+            if args.mode == "point":
+                img = point_visualize(img, gaze_pitchyaw)
+            elif args.mode == "all":
+                img = all_visualize(img, gaze_pitchyaw)
+
             timer.end_record("visualize")
         
         timer.end_record("whole_pipeline")
-        show_frame = timer.print_on_image(show_frame)
+        img = timer.print_on_image(img)
         
         if args.save_video is not None:
-            writer.write(show_frame)
+            writer.write(img)
         
-        cv2.imshow("onnx_demo", show_frame)
+        cv2.imshow("onnx_demo", img)
         end = time.time()
         print("diff:", end - start)
         code = cv2.waitKey(1)
