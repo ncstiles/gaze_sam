@@ -10,9 +10,11 @@ import numpy as np
 import onnxruntime
 import matplotlib.pyplot as plt
 import yaml
+
 from matplotlib.patches import Rectangle
 from PIL import Image
-from ultralytics import YOLO
+from super_gradients.training import models
+from super_gradients.common.object_names import Models
 
 from efficient_vit.demo_sam_model import draw_scatter, draw_binary_mask, cat_images, load_image, show_anns
 from efficient_vit.efficientvit.models.efficientvit.sam import EfficientViTSamAutomaticMaskGenerator, EfficientViTSamPredictor
@@ -214,9 +216,9 @@ def intersects_bb(mask, bbs): # get the largest percentage overlap that this mas
         
     return best_percentage
 
-def check_not_self(mask, eye_loc):
+def check_self(mask, eye_loc):
     rev = (eye_loc[1], eye_loc[0])
-    return mask[rev] != 1
+    return mask[rev] == 1
 
 def show_anns(anns, line_mask, bbs, center_pix) -> None:
     if len(anns) == 0:
@@ -231,7 +233,8 @@ def show_anns(anns, line_mask, bbs, center_pix) -> None:
     percentage_to_mask = {}
     for i, ann in enumerate(sorted_anns):
         m = ann["segmentation"]
-        # if np.any(m & line_mask) and check_not_self(m, center_pix): # object crosses line of sight
+        if check_self(m, center_pix): # dont want yourself
+            continue
         intersection = np.logical_and(m, line_mask)
         ix = np.argwhere(intersection)
         if len(ix) > 0: # object crosses line of sight
@@ -244,17 +247,22 @@ def show_anns(anns, line_mask, bbs, center_pix) -> None:
         print("EMPTY PERCENTAGE TO MASK???")
     
     else:
+        # for p in percentage_to_mask:
+        #     max_percentage = max(percentage_to_mask)
+        #     print("max percentage_overlap:", max_percentage, percentage_to_mask)
+        #     mask_ix, point = percentage_to_mask[max_percentage]
+        #     mask_ix, point = percentage_to_mask[p]
+        #     mask = sorted_anns[mask_ix]['segmentation']
+        #     img[mask] = np.concatenate([np.random.random(3), [0.35]])
+
         max_percentage = max(percentage_to_mask)
         print("max percentage_overlap:", max_percentage, percentage_to_mask)
         mask_ix, point = percentage_to_mask[max_percentage]
         mask = sorted_anns[mask_ix]['segmentation']
         img[mask] = color_mask
         print("point:", point)
-        # p = (point[0], img.shape[0] - point[1])
         p = (point[1], point[0])
-        plt.scatter(*p, c='green', marker = '*', s= 100)
-        # cv2.circle(img, (point[0], img.shape[0] - point[1]), 2, (0, 255, 0), thickness=10)
-
+        plt.scatter(*p, color='blue', marker='*', s=500, edgecolors="white", linewidths=1)
 
     ax = plt.gca()
     ax.set_autoscale_on(False) 
@@ -271,48 +279,56 @@ def all_visualize(img, start_point, end_point):
     if len(img_out.shape) == 2 or img_out.shape[2] == 1:
         img_out = cv2.cvtColor(img_out, cv2.COLOR_GRAY2BGR)
 
-    print('img out.size: ', img_out.shape)
+    bb_time = time.time()
+    bb_res = bb_model.predict(img)
 
-    bb_res = bb_model(img, stream=True)
+    print("time to run bb:", time.time() - bb_time)
 
-    print("starting to load the mask")
+    eff_time = time.time()
+
     # masks = efficientvit_mask_generator.generate(img)
-    # with open("mask_workpls.pkl", "wb") as f:
+
+    # with open("masks/mask_wall.pkl", "wb") as f:
     #     pickle.dump(masks, f)
 
-    with open("mask_workpls.pkl", 'rb') as f:
+    with open("masks/mask_wall.pkl", 'rb') as f:
         masks = pickle.load(f)
 
-    print("done loading the mask:")
-
-    # cv2.circle(img_out, start_point, 2, (255, 0, 0), thickness=5)
-    # cv2.circle(img_out, end_point, 2, (255, 0, 0), thickness=5)
-
+    print("time to run eff:", time.time() - eff_time)
 
     bounding_box_coords = []
     for res in bb_res:
-        for bounding_box in res.boxes.xyxy:
+        for bounding_box in res.prediction.bboxes_xyxy:
             x1, y1, x2, y2 = [int(coord.item()) for coord in bounding_box]
             bounding_box_coords.append([x1, y1, x2, y2])
-            # cv2.rectangle(img, (x1,y1), (x2,y2), (0, 255, 0), 2)
+            cv2.rectangle(img, (x1,y1), (x2,y2), (0, 255, 0), 2)
 
+    line_time = time.time()
     line_mask = get_pixels_on_line(img, start_point, end_point)
+    print("time to get pixels on line:", time.time() - line_time)
 
     plt.figure(figsize=(20, 20))
     plt.imshow(img) # after adding image cv2 stuff doesn't render
 
-    
-    print("img shape:", img.shape)
-
+    anns = time.time()
     show_anns(masks, line_mask, bounding_box_coords, start_point)
+    print("time to draw and determine masks:", time.time() - anns)
     cv2.circle(img, (0,0), 5, (0, 255, 0), thickness=20)
 
     plt.axis("off")
 
-    plt.savefig(f"vis_{time.time()}.png", format="png", dpi=300, bbox_inches="tight", pad_inches=0.0)
+    plt.savefig(f"out/vis_{time.time()}.png", format="png", dpi=300, bbox_inches="tight", pad_inches=0.0)
+
+def get_bounded_point(pt, w, h):
+    x, y = pt[0], pt[1]
+    bounded_x = min(max(0, x), w-1)
+    bounded_y = min(max(0, y), h-1)
+
+    return (bounded_x, bounded_y)
 
 
 if __name__ == '__main__':
+    start = time.time()
     parser = argparse.ArgumentParser("onnxruntime demo")
     parser.add_argument("--source", default="/dev/video0", type=str)
     parser.add_argument("--save-video", default=None, type=str, required=False)
@@ -335,18 +351,32 @@ if __name__ == '__main__':
         efficientvit_sam, **build_kwargs_from_config(opt, EfficientViTSamAutomaticMaskGenerator))
 
     w, h = 1280, 720
-    bb_model = YOLO("yolov8n.pt")
-    img = load_image("workpls.png")
+    y1 = time.time()
+    bb_model = models.get(Models.YOLO_NAS_S, pretrained_weights='coco')
+
+    # bb_model = attempt_load("yolov5m_Objects365.pt")
+    y2 = time.time()
+    print("time to load yolo:", y2 - y1)
+    img = load_image("base_imgs/wall.png")
     img = cv2.resize(img, (w, h))
 
-    # start_point = (555, 287)
-    # end_point = (273, 308)
-    # start_point = (683, 247)
-    # end_point = (877, 311)
-    start_point = (746, 435)
-    end_point = (930, 434)
-    # start_point = (663, 175)
-    # end_point = (525, 167)
+    # start_point = get_bounded_point((575, 253), w, h)
+    # end_point = get_bounded_point((568, -15), w, h)
+    # start_point = get_bounded_point((717, 254), w, h)
+    # end_point = get_bounded_point((424, 286), w, h)
+    start_point = get_bounded_point((396, 258), w, h)
+    end_point = get_bounded_point((105, 237), w, h)
     print("original image size:", img.shape)
     img = all_visualize(img, start_point, end_point)
 
+    end = time.time()
+
+    print("total time: ", end - start)
+
+
+    # bounding box  : 1.6s
+    # segment       : 99.3 s
+    # pixels on line: 0.0038 s
+    # add good masks: 0.506 s
+
+    # total         : 106.1 s
