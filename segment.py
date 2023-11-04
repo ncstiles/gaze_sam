@@ -286,13 +286,13 @@ def all_visualize(img, start_point, end_point):
 
     eff_time = time.time()
 
-    # masks = efficientvit_mask_generator.generate(img)
+    masks = efficientvit_mask_generator.generate(img)
 
     # with open("masks/mask_wall.pkl", "wb") as f:
     #     pickle.dump(masks, f)
 
-    with open("masks/mask_wall.pkl", 'rb') as f:
-        masks = pickle.load(f)
+    # with open("masks/mask_wall.pkl", 'rb') as f:
+    #     masks = pickle.load(f)
 
     print("time to run eff:", time.time() - eff_time)
 
@@ -342,10 +342,12 @@ if __name__ == '__main__':
     parser.add_argument("--point", type=str, default=None)
     parser.add_argument("--box", type=str, default=None)
 
+    parser.add_argument
+
     args, opt = parser.parse_known_args()
 
-    efficientvit_sam = create_sam_model(args.model, True, args.weight_url).eval()
-
+    # load efficientvit model
+    efficientvit_sam = create_sam_model(args.model, True, args.weight_url).cuda().eval()
     efficientvit_sam_predictor = EfficientViTSamPredictor(efficientvit_sam)
     efficientvit_mask_generator = EfficientViTSamAutomaticMaskGenerator(
         efficientvit_sam, **build_kwargs_from_config(opt, EfficientViTSamAutomaticMaskGenerator))
@@ -354,16 +356,13 @@ if __name__ == '__main__':
     y1 = time.time()
     bb_model = models.get(Models.YOLO_NAS_S, pretrained_weights='coco')
 
-    # bb_model = attempt_load("yolov5m_Objects365.pt")
     y2 = time.time()
     print("time to load yolo:", y2 - y1)
+
+    s = time.time()
     img = load_image("base_imgs/wall.png")
     img = cv2.resize(img, (w, h))
 
-    # start_point = get_bounded_point((575, 253), w, h)
-    # end_point = get_bounded_point((568, -15), w, h)
-    # start_point = get_bounded_point((717, 254), w, h)
-    # end_point = get_bounded_point((424, 286), w, h)
     start_point = get_bounded_point((396, 258), w, h)
     end_point = get_bounded_point((105, 237), w, h)
     print("original image size:", img.shape)
@@ -371,7 +370,9 @@ if __name__ == '__main__':
 
     end = time.time()
 
-    print("total time: ", end - start)
+    print('per pic time:', end - s)
+
+    # print("total time: ", end - start)
 
 
     # bounding box  : 1.6s

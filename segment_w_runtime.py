@@ -49,47 +49,6 @@ def get_gaze_focus(img, eye_pos, pitchyaw, length):
 
     return arrow_head, arrow_tail
 
-def segment_point(img, focus_point):
-    H, W, _ = img.shape
-
-    tmp_file = f".tmp_{time.time()}.png"
-    point_coords = [focus_point]
-    point_labels = [1]
-
-    efficientvit_sam_predictor.set_image(img)
-    masks, _, _ = efficientvit_sam_predictor.predict(
-        point_coords=np.array(point_coords),
-        point_labels=np.array(point_labels),
-        multimask_output=args.multimask,
-    )
-
-    plots = [
-        draw_scatter(
-            draw_binary_mask(img, binary_mask, (255, 0, 0)),
-            point_coords,
-            color=["g" if l == 1 else "r" for l in point_labels],
-            s=10,
-            ew=0.25,
-            tmp_name=tmp_file,
-        )
-        for binary_mask in masks
-    ]
-
-    plots = cat_images(plots, axis=1)
-    return plots
-
-
-def point_visualize(img, gaze_pitchyaw):
-    if gaze_pitchyaw is not None:
-        eye_pos = landmark[-2:].mean(0)
-        head, focus_point = get_gaze_focus(img, eye_pos, gaze_pitchyaw, length=300)
-        img = segment_point(img, focus_point)
-        draw_gaze(img, head, focus_point)
-    else:
-        raise NotImplementedError
-
-    return img
-
 def find_edge_intersection(w, h, start, end):
     x1, y1 = start
     x, y = end
@@ -131,7 +90,6 @@ def find_edge_intersection(w, h, start, end):
     
     return int(new_x), int(new_y)
     
-
 def get_pixels_on_line(img, start_point, end_point):
     """
     Get all pixel coordinates that lie on a line between start_point and end_point.
@@ -306,18 +264,16 @@ def do_yolo(session, img):
     print("box extraction time:", box_end - box_start)
     
     return boxes
-    
-    
-def all_visualize(img, boxes, start_point, end_point):
-    img_out = img
-    if len(img_out.shape) == 2 or img_out.shape[2] == 1:
-        img_out = cv2.cvtColor(img_out, cv2.COLOR_GRAY2BGR)
 
+def get_masks(vit_session, img): # TODO:  cv2.cvtColor(img_out, cv2.COLOR_GRAY2BGR)??
     vit_start = time.time()
+    
     masks = efficientvit_mask_generator.generate(img)
+    
     vit_end = time.time()
     print("efficient vit time:", vit_end - vit_start)
-
+      
+def all_visualize(img, boxes, masks, start_point, end_point):
     extend_gaze_start = time.time()
     line_mask = get_pixels_on_line(img, start_point, end_point)
     extend_gaze_end = time.time()
@@ -367,7 +323,7 @@ if __name__ == '__main__':
 
     # load efficientvit model
     efficientvit_sam = create_sam_model(args.model, True, args.weight_url).cuda().eval()
-    efficientvit_sam_predictor = EfficientViTSamPredictor(efficientvit_sam)
+    # efficientvit_sam_predictor = EfficientViTSamPredictor(efficientvit_sam) # used only for point and box mode
     efficientvit_mask_generator = EfficientViTSamAutomaticMaskGenerator(
         efficientvit_sam, **build_kwargs_from_config(opt, EfficientViTSamAutomaticMaskGenerator))
 
@@ -385,6 +341,7 @@ if __name__ == '__main__':
 
     start = time.time()
     boxes = do_yolo(session, img)
+    masks = get_masks(vit_session, img)
     img = all_visualize(img, boxes, start_point, end_point)
     end = time.time()
 
