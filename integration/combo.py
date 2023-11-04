@@ -21,8 +21,8 @@ from efficient_vit.efficientvit.sam_model_zoo import create_sam_model
 from proxylessnas.proxyless_gaze.deployment.onnx.demo_utils import multiclass_nms, demo_postprocess, Timer, draw_gaze
 from proxylessnas.proxyless_gaze.deployment.onnx.smoother import GazeSmoother, LandmarkSmoother, OneEuroFilter
 
-from vit_utils import *
-from gaze_utils import *
+from utils_vit import *
+from utils_gaze import *
 
 def get_cli_args():
     parser = argparse.ArgumentParser()

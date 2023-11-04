@@ -16,7 +16,7 @@ sys.path.append("../")
 from proxylessnas.proxyless_gaze.deployment.onnx.demo_utils import multiclass_nms, demo_postprocess, Timer, draw_gaze
 from proxylessnas.proxyless_gaze.deployment.onnx.smoother import GazeSmoother, LandmarkSmoother, OneEuroFilter
 
-from gaze_utils import *
+from utils_gaze import *
 
 def make_parser():
     parser = argparse.ArgumentParser("onnxruntime demo")

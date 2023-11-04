@@ -3,6 +3,7 @@ import tensorrt as trt
 
 
 # --- vit engines ---
+
 def load_image_encoder_engine(path: str):
     with trt.Logger() as logger, trt.Runtime(logger) as runtime:
         with open(path, 'rb') as f:
@@ -40,7 +41,7 @@ def load_mask_decoder_engine(path: str):
 
     return mask_decoder_trt
 
- # --- vit engines ---
+# --- gaze engines ---
 
 def load_face_detection_engine(path: str):
     with trt.Logger() as logger, trt.Runtime(logger) as runtime:
@@ -84,3 +85,20 @@ def load_gaze_estimation_engine(path: str):
     )
 
     return image_encoder_trt
+
+# --- yolo engines ---
+
+def load_yolo_engine(path: str):
+    with trt.Logger() as logger, trt.Runtime(logger) as runtime:
+        trt.init_libnvinfer_plugins(logger, namespace="")
+        with open(path, 'rb') as f:
+            engine_bytes = f.read()
+        engine = runtime.deserialize_cuda_engine(engine_bytes)
+
+    trtengine = TRTModule(
+        engine=engine,
+        input_names=["onnx::Cast_0"],
+        output_names=["num_dets", "det_boxes", "det_scores", "det_classes"]
+    )
+
+    return trtengine

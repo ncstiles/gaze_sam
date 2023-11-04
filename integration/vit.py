@@ -17,7 +17,7 @@ from typing import Any, Union, Tuple, Optional, List, Dict
 from trt_sam import EfficientViTSamAutomaticMaskGenerator
 from efficient_vit.efficientvit.sam_model_zoo import create_sam_model
 
-from vit_utils import load_image, cat_images, show_anns, draw_bbox, draw_scatter
+from utils_vit import load_image, cat_images, show_anns, draw_bbox, draw_scatter
 
 def main():
     parser = argparse.ArgumentParser()
