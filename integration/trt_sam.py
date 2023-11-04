@@ -22,6 +22,8 @@ import matplotlib.pyplot as plt
 
 from torchvision.ops.boxes import batched_nms, box_area  # type: ignore
 
+from load_engine import load_image_encoder_engine, load_mask_decoder_engine
+
 from segment_anything.utils.amg import (
     MaskData,
     area_from_rle,
@@ -60,7 +62,6 @@ from efficient_vit.efficientvit.models.nn import (
 from efficient_vit.efficientvit.models.utils import get_device
 import onnxruntime as ort
 
-from vit_utils import load_image_encoder_engine, load_mask_decoder_engine
 
 __all__ = [
     "SamPad",

@@ -1,51 +1,8 @@
-from torch2trt import TRTModule
-import tensorrt as trt
-
 from PIL import Image
 import numpy as np
 from typing import Any, Union, Tuple, Optional, List, Dict
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
-
-
-
-# --- vit engines ---
-def load_image_encoder_engine(path: str):
-    with trt.Logger() as logger, trt.Runtime(logger) as runtime:
-        with open(path, 'rb') as f:
-            engine_bytes = f.read()
-        engine = runtime.deserialize_cuda_engine(engine_bytes)
-
-    image_encoder_trt = TRTModule(
-        engine=engine,
-        input_names=["input_image"],
-        output_names=["image_embeddings"]
-    )
-
-    return image_encoder_trt
-
-def load_mask_decoder_engine(path: str):
-    with trt.Logger() as logger, trt.Runtime(logger) as runtime:
-        with open(path, 'rb') as f:
-            engine_bytes = f.read()
-        engine = runtime.deserialize_cuda_engine(engine_bytes)
-
-    mask_decoder_trt = TRTModule(
-        engine=engine,
-        input_names=[
-            "image_embeddings",
-            "point_coords",
-            "point_labels",
-            "mask_input",
-            "has_mask_input"
-        ],
-        output_names=[
-            "iou_predictions",
-            "low_res_masks"
-        ]
-    )
-
-    return mask_decoder_trt
 
 # --- vit visualizers ---
 def load_image(data_path: str, mode="rgb") -> np.ndarray:
