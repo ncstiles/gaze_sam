@@ -23,12 +23,15 @@ from proxylessnas.proxyless_gaze.deployment.onnx.smoother import GazeSmoother, L
 
 from utils_vit import *
 from utils_gaze import *
+from utils_yolo import * 
+
+from load_engine import *
 
 def get_cli_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="l1")
     # parser.add_argument("--image_path", type=str, default="../base_imgs/fig/cat.jpg")
-    parser.add_argument("--image_path", type=str, default="../base_imgs/workpls.png")
+    parser.add_argument("--image_path", type=str, default="../base_imgs/wall.png")
     parser.add_argument("--output_path", type=str, default=f"out/{time.time()}.png")
     args, _ = parser.parse_known_args()
     return args
@@ -56,6 +59,9 @@ def main():
     timer.start_record("whole_pipeline")
     CURRENT_TIMESTAMP = timer.get_current_timestamp()
 
+    # yolo initialization
+    trt_yolo = load_yolo_engine("engines/yolo/yolo.engine")
+
 
     # load image
     raw_image = np.array(Image.open(args.image_path).convert("RGB"))
@@ -65,10 +71,15 @@ def main():
     H, W, _ = raw_image.shape
     print(f"Image Size: W={W}, H={H}")
 
+    a = time.time()
+    # run vit model
     start = time.time()
     masks = efficientvit_mask_generator.generate(raw_image)
     end = time.time()
+    print("mask generation time:", end - start)
 
+
+    # run gaze model
     frame = raw_image
     faces = detect_face_trt(frame, trt_face_detection, timer)
     if faces is not None:
@@ -87,14 +98,26 @@ def main():
         show_frame = visualize(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
         timer.end_record("visualize")
 
-    timer.end_record("whole_pipeline")
-    show_frame = timer.print_on_image(show_frame)
-    
-    print("mask generation time:", end - start)
+        timer.end_record("whole_pipeline")
+        show_frame = timer.print_on_image(show_frame)
+
+    # run yolo model
+    image_yolo = cv2.resize(raw_image, (640, 640)) # must be (640, 640) to be compatible with engine
+    expanded_img = np.transpose(np.expand_dims(image_yolo, axis=0), (0, 3, 1, 2))
+    predictions = trt_yolo(torch.Tensor(expanded_img).cuda())
+    visualize_bounding_boxes(raw_image, predictions, raw_image.shape[:2])
+
+    b = time.time()
+
+    print("all segs:", b - a)
+
+    # visualize
     plt.figure(figsize=(20, 20))
     plt.imshow(raw_image)
     show_anns(masks)
     plt.axis("off")
+
+    print("full without load time:", time.time() - a)
 
     print(f"saving img to {args.output_path}")
     plt.savefig(args.output_path, format="png", dpi=300, bbox_inches="tight", pad_inches=0.0)
