@@ -292,3 +292,115 @@ def estimate_gaze_trt(img, landmark, gaze_estimation_engine, timer) -> np.ndarra
     pred_vec_cam /= np.linalg.norm(pred_vec_cam)
     pred_pitchyaw_cam = np.array(vec_to_euler(*pred_vec_cam))
     return pred_pitchyaw_cam, rvec, tvec
+
+
+def find_edge_intersection(w, h, start, end):
+    x1, y1 = start
+    x, y = end
+
+    up = y <= y1
+    right = x >= x1
+
+    if abs(x) == abs(x1): # vertical case
+        if y < y1:
+            return (x, 0)
+        elif y == y1:
+            return start  # looking direct at ya
+        else:
+            return (x, h-1)
+
+    m = (y-y1) / (x-x1)
+    abs_m = abs(m)
+
+    avg_slope = h/w
+
+    if up and right: # Q1
+        new_x, new_y = w-1, 0
+    elif up and not right: #Q2
+        new_x, new_y = 0, 0
+    elif not up and right:
+        new_x, new_y = w-1, h-1
+    elif not up and not right:
+        new_x, new_y = 0, h-1
+    else:
+        print("ya screwed up")
+        raise Exception("didn't find edge point")
+
+    if abs_m < avg_slope: # flat slope, will intersect with left, right edge. find y
+        # eq: m * (x-start_x) + start_y
+        new_y = m * (new_x - x) + y
+    if abs_m > avg_slope: # tall slope, intersect with floor/ ceil. find x
+        # eq: 1/m * (y-start_y) + start_x
+        new_x = 1/m * (new_y - y) + x
+    
+    return int(new_x), int(new_y)
+
+def get_pixels_on_line(img, start_point, end_point):
+    """
+    Get all pixel coordinates that lie on a line between start_point and end_point.
+
+    Parameters:
+    - img_shape: Tuple (height, width) representing the image dimensions.
+    - start_point: Tuple (x, y) representing the starting point of the line.
+    - end_point: Tuple (x, y) representing the ending point of the line.
+
+    Returns:
+    - List of (x, y) tuples representing the pixel coordinates on the line.
+    """
+    h, w = img.shape[:2]
+    x1, y1 = start_point
+    x2, y2 = find_edge_intersection(w, h, start_point, end_point)
+
+    print("H:", h, "W:", w)
+
+    print("edge intersection:", x2, y2)
+
+    # Calculate differences and absolute differences between points
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+
+    # Determine the direction along the x and y axes
+    if x1 < x2:
+        x_increment = 1
+    else:
+        x_increment = -1
+
+    if y1 < y2:
+        y_increment = 1
+    else:
+        y_increment = -1
+
+    # Initialize error values and the current position
+    error = dx - dy
+    x = x1
+    y = y1
+
+    x_vals, y_vals = [], []
+
+    # Iterate through the line and add pixels to the result
+    # while 0<=x<H and 0<=y<W:
+    while 0<=x<w and 0<=y<h:
+        # Add the current pixel to the list
+        x_vals.append(x)
+        y_vals.append(y)
+
+        # Calculate error and next position
+        double_error = 2 * error
+        if double_error > -dy:
+            error -= dy
+            x += x_increment
+        if double_error < dx:
+            error += dx
+            y += y_increment
+
+    # Add the last pixel (end_point) to the list
+    x_vals.append(x2)
+    y_vals.append(y2)
+
+    # for x, y in zip(x_vals, y_vals):
+    #     cv2.circle(img, (x,y), 1, (255, 0, 0), thickness=1)
+
+    mask = np.zeros((h, w))
+    mask[y_vals, x_vals] = 1
+
+    return mask.astype(bool)

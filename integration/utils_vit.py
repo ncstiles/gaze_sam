@@ -1,8 +1,11 @@
-from PIL import Image
 import numpy as np
+
 from typing import Any, Union, Tuple, Optional, List, Dict
+
+from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
+import cv2
 
 # --- vit visualizers ---
 def load_image(data_path: str, mode="rgb") -> np.ndarray:
@@ -44,6 +47,79 @@ def show_anns(anns) -> None:
 
         img[m] = color_mask
     ax.imshow(img)
+
+def check_self(mask, eye_loc):
+    rev = (eye_loc[1], eye_loc[0])
+    return mask[rev] == 1
+
+def intersects_bb(mask, bbs): # get the largest percentage overlap that this mask has with any of the bounding boxes
+    best_percentage = 0
+
+    for bb in bbs:
+        x1, y1, x2, y2 = bb
+        roi = mask[y1:y2+1, x1:x2+1]
+        
+        intersection_area = np.count_nonzero(roi)
+        bb_area = abs((x2-x1+1) * (y2-y1+1))
+        percentage_overlap = intersection_area / bb_area * 100
+        best_percentage = max(best_percentage, percentage_overlap)
+        
+    return best_percentage
+
+def show_one_ann(anns, line_mask, bbs, center_pix) -> None:
+    if len(anns) == 0:
+        return
+    sorted_anns = sorted(anns, key=(lambda x: x["area"]), reverse=True)
+
+
+    img = np.ones((sorted_anns[0]["segmentation"].shape[0], sorted_anns[0]["segmentation"].shape[1], 4))
+    img[:, :, 3] = 0
+    cv2.circle(img, (0,0), 5, (0, 255, 0), thickness=20)
+
+    percentage_to_mask = {}
+    for i, ann in enumerate(sorted_anns):
+        m = ann["segmentation"]
+        if check_self(m, center_pix): # dont want yourself
+            continue
+        intersection = np.logical_and(m, line_mask)
+        ix = np.argwhere(intersection)
+        if len(ix) > 0: # object crosses line of sight
+            percentage_intersection = intersects_bb(m, bbs)
+            percentage_to_mask[percentage_intersection] = (i, ix[0]) # v low chance of same thing, in this case, j replace
+                
+    color_mask = np.concatenate([[255, 0, 0], [0.35]])
+
+    if len(percentage_to_mask) == 0:
+        print("EMPTY PERCENTAGE TO MASK???")
+    
+    else:
+        # for p in percentage_to_mask:
+        #     max_percentage = max(percentage_to_mask)
+        #     print("max percentage_overlap:", max_percentage, percentage_to_mask)
+        #     mask_ix, point = percentage_to_mask[max_percentage]
+        #     mask_ix, point = percentage_to_mask[p]
+        #     mask = sorted_anns[mask_ix]['segmentation']
+        #     img[mask] = np.concatenate([np.random.random(3), [0.35]])
+
+        max_percentage = max(percentage_to_mask)
+        print("max percentage_overlap:", max_percentage, percentage_to_mask)
+        mask_ix, point = percentage_to_mask[max_percentage]
+        mask = sorted_anns[mask_ix]['segmentation']
+        img[mask] = color_mask
+        print("point:", point)
+        p = (point[1], point[0])
+        plt.scatter(*p, color='blue', marker='*', s=500, edgecolors="white", linewidths=1)
+
+    ax = plt.gca()
+    ax.set_autoscale_on(False) 
+    
+    img[line_mask] = np.concatenate([[0, 255, 0], [0.5]])
+
+    print(f"num masks: {len(sorted_anns)}")
+    print("img.shape:", img.shape)
+
+    ax.imshow(img) # this is important to keep the segmentations on the img
+
 
 def draw_binary_mask(raw_image: np.ndarray, binary_mask: np.ndarray, mask_color=(0, 0, 255)) -> np.ndarray:
     color_mask = np.zeros_like(raw_image, dtype=np.uint8)

@@ -31,14 +31,20 @@ def get_cli_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="l1")
     # parser.add_argument("--image_path", type=str, default="../base_imgs/fig/cat.jpg")
-    parser.add_argument("--image_path", type=str, default="../base_imgs/wall.png")
+    parser.add_argument("--image_path", type=str, default="../base_imgs/psycho.png")
     parser.add_argument("--output_path", type=str, default=f"out/{time.time()}.png")
+    parser.add_argument("--gaze_start", type=str, default=f"[{595},{361}]")
+    parser.add_argument("--gaze_end", type=str, default=f"[{757},{396}]")
     args, _ = parser.parse_known_args()
     return args
 
 
 def main():
     args = get_cli_args()
+
+    # point processing
+    args.gaze_start = yaml.safe_load(args.gaze_start)
+    args.gaze_end = yaml.safe_load(args.gaze_end)
 
     # vit initialization
     trt_encoder_path = "engines/vit/encoder.engine"
@@ -100,12 +106,17 @@ def main():
 
         timer.end_record("whole_pipeline")
         show_frame = timer.print_on_image(show_frame)
+    
+    gaze_line = get_pixels_on_line(raw_image, args.gaze_start, args.gaze_end)
+
 
     # run yolo model
     image_yolo = cv2.resize(raw_image, (640, 640)) # must be (640, 640) to be compatible with engine
     expanded_img = np.transpose(np.expand_dims(image_yolo, axis=0), (0, 3, 1, 2))
     predictions = trt_yolo(torch.Tensor(expanded_img).cuda())
     visualize_bounding_boxes(raw_image, predictions, raw_image.shape[:2])
+    bounding_boxes = get_bounding_boxes(predictions, raw_image.shape[:2])
+
 
     b = time.time()
 
@@ -114,7 +125,8 @@ def main():
     # visualize
     plt.figure(figsize=(20, 20))
     plt.imshow(raw_image)
-    show_anns(masks)
+    # show_anns(masks)
+    show_one_ann(masks, gaze_line, bounding_boxes, args.gaze_start)
     plt.axis("off")
 
     print("full without load time:", time.time() - a)
