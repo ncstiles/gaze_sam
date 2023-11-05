@@ -185,6 +185,13 @@ def visualize(img, face=None, landmark=None, gaze_pitchyaw=None, headpose=None):
         #     cv2.putText(img, f"{i}", tuple(pt.ravel()), font, 0.5, txt_color, thickness=1)
     return img
 
+def visualize_simple(img, face=None, landmark=None, gaze_pitchyaw=None, headpose=None):
+    if gaze_pitchyaw is not None:
+        eye_pos = landmark[-2:].mean(0)
+        draw_gaze(img, eye_pos, gaze_pitchyaw, 300, 4)
+    
+    return img
+
 def detect_face_trt(img, face_detection_engine, timer, score_thr=0.5, input_shape=(160, 128)) -> np.ndarray:
     img, ratio = yolox_preprocess(img, input_shape)
     full_image = torch.Tensor(img[None, :, :, :]).cuda()
