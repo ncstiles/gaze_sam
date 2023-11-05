@@ -74,14 +74,16 @@ def main():
     # load image
     a = time.time()
     raw_image = np.array(Image.open(args.image_path).convert("RGB"))
+    b = time.time()
+
     if raw_image.shape[0] * raw_image.shape[1] > 1280 * 720:
         raw_image = cv2.resize(raw_image, (1280, 720))
     
-    b = time.time()
+    bb = time.time()
 
     H, W, _ = raw_image.shape
     print(f"Image Size: W={W}, H={H}")
-    
+
     # run gaze model
     frame = raw_image
     e = time.time()
@@ -118,17 +120,19 @@ def main():
     p = time.time()
     gaze_points, gaze_mask = get_pixels_on_line(raw_image, args.gaze_start, args.gaze_end)
     q = time.time()
-
     # run vit model
     c = time.time()
     masks = efficientvit_mask_generator.generate(raw_image, gaze_points)
     d = time.time()
 
     # run yolo model
+    qq = time.time()  
     image_yolo = cv2.resize(raw_image, (640, 640)) # must be (640, 640) to be compatible with engine
     expanded_img = np.transpose(np.expand_dims(image_yolo, axis=0), (0, 3, 1, 2))
     r = time.time()
-    predictions = trt_yolo(torch.Tensor(expanded_img).cuda())
+    yolo_img = torch.tensor(expanded_img).cuda()
+    ss = time.time()
+    predictions = trt_yolo(yolo_img)
     s = time.time()
     visualize_bounding_boxes(raw_image, predictions, raw_image.shape[:2])
     t = time.time()
@@ -152,7 +156,8 @@ def main():
     
     print()
 
-    print("load and resize img:", b - a)
+    print("load img:", b - a)
+    print("resize img:", bb - b)
     print("generate masks:", d - c)
     print("detect face:", f - e)
     print("smooth + extract face:", h - g)
@@ -162,8 +167,9 @@ def main():
     print("smooth gaze:", m - l)
     print("visualize gaze:", o - n)
     print("get gaze mask:", q - p)
-    print("prep yolo img:", r - q)
-    print("yolo pred:", s - r)
+    print("prep yolo img:", r - qq)
+    print("yolo img torch:", ss - r)
+    print("yolo pred:", s - ss)
     print("visualize yolo:", t - s)
     print("get bounding boxes:", u - t)
     print("show non-mask img:", v - u)

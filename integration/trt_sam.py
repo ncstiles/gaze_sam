@@ -642,7 +642,7 @@ class EfficientViTSamAutomaticMaskGenerator():
         self,
         model: EfficientViTSam,
         points_per_side: int or None = 32,
-        points_per_batch: int = 64,
+        points_per_batch: int = 32,
         pred_iou_thresh: float = 0.88,
         stability_score_thresh: float = 0.95,
         stability_score_offset: float = 1.0,
@@ -764,8 +764,8 @@ class EfficientViTSamAutomaticMaskGenerator():
                crop_box (list(float)): The crop of the image used to generate
                  the mask, given in XYWH format.
         """
-        increment = round(len(gaze_points)/64)
-        self.gaze_points = np.array([gaze_points[i*increment] for i in range(64) if i * increment < len(gaze_points)]) # setting number of points in batch to be 64
+        increment = round(len(gaze_points)/self.points_per_batch) # set to 10 rn
+        self.gaze_points = np.array([gaze_points[i*increment] for i in range(self.points_per_batch) if i * increment < len(gaze_points)]) # setting number of points in batch to be 64
 
         # Generate masks
         a = time.time()
