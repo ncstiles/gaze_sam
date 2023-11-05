@@ -766,7 +766,11 @@ class EfficientViTSamAutomaticMaskGenerator():
         """
 
         # Generate masks
+        a = time.time()
         mask_data = self._generate_masks(image)
+        b = time.time()
+
+        
 
         # Filter small disconnected regions and holes in masks
         if self.min_mask_region_area > 0:
@@ -775,6 +779,7 @@ class EfficientViTSamAutomaticMaskGenerator():
                 self.min_mask_region_area,
                 max(self.box_nms_thresh, self.crop_nms_thresh),
             )
+        c = time.time()
 
         # Encode masks
         if self.output_mode == "coco_rle":
@@ -786,6 +791,8 @@ class EfficientViTSamAutomaticMaskGenerator():
 
         print("mask data segmentations len:", len(mask_data['segmentations']))
         
+        d = time.time()
+
         # Write mask records
         curr_anns = []
         for idx in range(len(mask_data["segmentations"])):
@@ -799,6 +806,12 @@ class EfficientViTSamAutomaticMaskGenerator():
                 "crop_box": box_xyxy_to_xywh(mask_data["crop_boxes"][idx]).tolist(),
             }
             curr_anns.append(ann)
+        e = time.time()
+
+        print("\tmask generation time:", b - a)
+        print("\tpostprocess time:", c - b)
+        print("\trle encoding time:", d - c)
+        print("\twrite MaskData:", e - d)
 
         return curr_anns
 
@@ -813,9 +826,13 @@ class EfficientViTSamAutomaticMaskGenerator():
         # Iterate over image crops
         data = MaskData()
         for crop_box, layer_idx in zip(crop_boxes, layer_idxs):
+            a = time.time()
             crop_data = self._process_crop(image, crop_box, layer_idx, orig_size)
             data.cat(crop_data)
+            b = time.time()
+            print("\t\tcrop process time:", b - a)
 
+        c = time.time()
         # Remove duplicate masks between crops
         if len(crop_boxes) > 1:
             # Prefer masks from smaller crops
@@ -830,6 +847,8 @@ class EfficientViTSamAutomaticMaskGenerator():
             data.filter(keep_by_nms)
 
         data.to_numpy()
+        d = time.time()
+        print("\t\tduplicate crop removal time:", d - c)
         return data
 
     def _process_crop(
@@ -840,21 +859,33 @@ class EfficientViTSamAutomaticMaskGenerator():
         orig_size: Tuple[int, ...],
     ) -> MaskData:
         # Crop the image and calculate embeddings
+        a = time.time()
         x0, y0, x1, y1 = crop_box
         cropped_im = image[y0:y1, x0:x1, :]
         cropped_im_size = cropped_im.shape[:2]
+        b = time.time()
+        print("\t\t\tcrop preprocess time:", b - a)
         self.predictor.set_image_trt(cropped_im)
+        c = time.time()
+        print("\t\t\tMASK ENCODER TIME:", c - b)
 
         # Get points for this crop
         points_scale = np.array(cropped_im_size)[None, ::-1]
         points_for_image = self.point_grids[crop_layer_idx] * points_scale
+        d = time.time()
+        print("\t\t\tpoint preprocessing time:", d - c)
 
         # Generate masks for this crop in batches
         data = MaskData()
         for (points,) in batch_iterator(self.points_per_batch, points_for_image):
+            e = time.time()
             batch_data = self._process_batch(points, cropped_im_size, crop_box, orig_size)
+            f = time.time()
+            print("\t\t\tbatch process time:", f - e)
             data.cat(batch_data)
             del batch_data
+       
+        e = time.time()
         self.predictor.reset_image()
 
         print("num iou preds before nms:", data['iou_preds'].shape)
@@ -867,6 +898,9 @@ class EfficientViTSamAutomaticMaskGenerator():
             iou_threshold=self.box_nms_thresh,
         )
         data.filter(keep_by_nms)
+        f = time.time()
+
+        print("\t\t\tbatch nms time:", f - e)
 
         print("num iou preds after nms:", data['iou_preds'].shape)
 
@@ -874,6 +908,9 @@ class EfficientViTSamAutomaticMaskGenerator():
         data["boxes"] = uncrop_boxes_xyxy(data["boxes"], crop_box)
         data["points"] = uncrop_points(data["points"], crop_box)
         data["crop_boxes"] = torch.tensor([crop_box for _ in range(len(data["rles"]))])
+        g = time.time()
+
+        print("\t\t\tuncrop time:", g - f)
 
         return data
 
@@ -886,16 +923,21 @@ class EfficientViTSamAutomaticMaskGenerator():
     ) -> MaskData:
         orig_h, orig_w = orig_size
 
+        a = time.time()
         # Run model on this batch
         transformed_points = self.predictor.transform.apply_coords(points, im_size)
         in_points = torch.as_tensor(transformed_points.astype(np.float32), device=self.predictor.device)
         in_labels = torch.ones(in_points.shape[0], dtype=torch.int, device=in_points.device)
+        b = time.time()
+        print("\t\t\t\tbatch preprocess time:", b - a)
         iou_preds, masks = self.predictor.predict_torch_trt(
             in_points[:, None, :],
             in_labels[:, None],
             multimask_output=True,
             return_logits=True,
         )
+        c = time.time()
+        print("\t\t\t\tBATCH DECODER TIME:", c - b)
 
         # Serialize predictions and store in MaskData
         data = MaskData(
@@ -931,6 +973,9 @@ class EfficientViTSamAutomaticMaskGenerator():
         data["masks"] = uncrop_masks(data["masks"], crop_box, orig_h, orig_w)
         data["rles"] = mask_to_rle_pytorch(data["masks"])
         del data["masks"]
+
+        d = time.time()
+        print("\t\t\t\tiou thresh filtering time:", d - c)
 
         return data
 
