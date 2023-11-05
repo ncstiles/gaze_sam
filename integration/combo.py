@@ -31,10 +31,10 @@ def get_cli_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="l1")
     # parser.add_argument("--image_path", type=str, default="../base_imgs/fig/cat.jpg")
-    parser.add_argument("--image_path", type=str, default="../base_imgs/pen.png")
+    parser.add_argument("--image_path", type=str, default="../base_imgs/workpls.png")
     parser.add_argument("--output_path", type=str, default=f"out/{time.time()}.png")
-    parser.add_argument("--gaze_start", type=str, default=f"[{617},{288}]")
-    parser.add_argument("--gaze_end", type=str, default=f"[{808},{242}]")
+    parser.add_argument("--gaze_start", type=str, default=f"[{746},{435}]")
+    parser.add_argument("--gaze_end", type=str, default=f"[{930},{434}]")
     args, _ = parser.parse_known_args()
     return args
 
@@ -81,11 +81,6 @@ def main():
 
     H, W, _ = raw_image.shape
     print(f"Image Size: W={W}, H={H}")
-
-    # run vit model
-    c = time.time()
-    masks = efficientvit_mask_generator.generate(raw_image)
-    d = time.time()
     
     # run gaze model
     frame = raw_image
@@ -121,9 +116,13 @@ def main():
         # show_frame = timer.print_on_image(show_frame)
     
     p = time.time()
-    gaze_line = get_pixels_on_line(raw_image, args.gaze_start, args.gaze_end)
+    gaze_points, gaze_mask = get_pixels_on_line(raw_image, args.gaze_start, args.gaze_end)
     q = time.time()
 
+    # run vit model
+    c = time.time()
+    masks = efficientvit_mask_generator.generate(raw_image, gaze_points)
+    d = time.time()
 
     # run yolo model
     image_yolo = cv2.resize(raw_image, (640, 640)) # must be (640, 640) to be compatible with engine
@@ -141,7 +140,7 @@ def main():
     plt.imshow(raw_image)
     v = time.time()
     # show_anns(masks)
-    show_one_ann(masks, gaze_line, bounding_boxes, args.gaze_start)
+    show_one_ann(masks, gaze_mask, bounding_boxes, args.gaze_start)
     
     w = time.time()
     plt.axis("off")

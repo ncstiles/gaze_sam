@@ -403,6 +403,8 @@ def get_pixels_on_line(img, start_point, end_point):
     # Add the last pixel (end_point) to the list
     x_vals.append(x2)
     y_vals.append(y2)
+    
+    gaze_points = np.array([(x,y) for x,y in zip(x_vals, y_vals)])
 
     # for x, y in zip(x_vals, y_vals):
     #     cv2.circle(img, (x,y), 1, (255, 0, 0), thickness=1)
@@ -410,4 +412,4 @@ def get_pixels_on_line(img, start_point, end_point):
     mask = np.zeros((h, w))
     mask[y_vals, x_vals] = 1
 
-    return mask.astype(bool)
+    return gaze_points, mask.astype(bool)

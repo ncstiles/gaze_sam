@@ -740,7 +740,7 @@ class EfficientViTSamAutomaticMaskGenerator():
         self.output_mode = output_mode
 
     @torch.no_grad()
-    def generate(self, image: np.ndarray) -> List[Dict[str, Any]]:
+    def generate(self, image: np.ndarray, gaze_points: np.ndarray) -> List[Dict[str, Any]]:
         """
         Generates masks for the given image.
 
@@ -764,13 +764,13 @@ class EfficientViTSamAutomaticMaskGenerator():
                crop_box (list(float)): The crop of the image used to generate
                  the mask, given in XYWH format.
         """
+        increment = round(len(gaze_points)/64)
+        self.gaze_points = np.array([gaze_points[i*increment] for i in range(64) if i * increment < len(gaze_points)]) # setting number of points in batch to be 64
 
         # Generate masks
         a = time.time()
         mask_data = self._generate_masks(image)
         b = time.time()
-
-        
 
         # Filter small disconnected regions and holes in masks
         if self.min_mask_region_area > 0:
@@ -850,7 +850,7 @@ class EfficientViTSamAutomaticMaskGenerator():
         d = time.time()
         print("\t\tduplicate crop removal time:", d - c)
         return data
-
+    
     def _process_crop(
         self,
         image: np.ndarray,
@@ -876,14 +876,14 @@ class EfficientViTSamAutomaticMaskGenerator():
         print("\t\t\tpoint preprocessing time:", d - c)
 
         # Generate masks for this crop in batches
-        data = MaskData()
-        for (points,) in batch_iterator(self.points_per_batch, points_for_image):
-            e = time.time()
-            batch_data = self._process_batch(points, cropped_im_size, crop_box, orig_size)
-            f = time.time()
-            print("\t\t\tbatch process time:", f - e)
-            data.cat(batch_data)
-            del batch_data
+        data = MaskData()   
+
+        e = time.time()
+        batch_data = self._process_batch(self.gaze_points, cropped_im_size, crop_box, orig_size)
+        f = time.time()
+        print("\t\t\tbatch process time:", f - e)
+        data.cat(batch_data)
+        del batch_data
        
         e = time.time()
         self.predictor.reset_image()
