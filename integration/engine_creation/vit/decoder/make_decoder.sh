@@ -1,9 +1,9 @@
-ONNXPATH="../../engines/vit/onnx/decoder_64_80_dympoints.onnx"
-ENGINEPATH="../../engines/vit/decoder_64_80_dympoints.engine"
+ONNXPATH="../../../engines/vit/onnx/decoder_k2.onnx"
+ENGINEPATH="../../../engines/vit/decoder_fp32_k2.engine"
 echo "export efficientvit sam decoder >>>"
 
 python -m make_decoder \
-    --checkpoint vit/l1.pt \
+    --checkpoint l1.pt \
     --output $ONNXPATH \
     --model-type l1 \
     --opset 11
@@ -17,6 +17,6 @@ echo "--- creating trt engine ---"
     --onnx=$ONNXPATH \
     --saveEngine=$ENGINEPATH \
     --minShapes=point_coords:1x1x2,point_labels:1x1 \
-    --optShapes=point_coords:64x1x2,point_labels:64x1 \
-    --maxShapes=point_coords:80x10x2,point_labels:80x10 \
-    --verbose
+    --optShapes=point_coords:32x1x2,point_labels:32x1 \
+    --maxShapes=point_coords:32x1x2,point_labels:32x1 \
+    # --fp16

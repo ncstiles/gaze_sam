@@ -9,10 +9,7 @@ import pathlib
 import torch
 
 import sys
-
-sys.path.append("../../../")
-
-print("sys.path:", sys.path)
+sys.path.append("../../../../")
 
 from efficient_vit.efficientvit.sam_model_zoo import create_sam_model
 from onnx_sam_model import EfficientSamOnnxModel
@@ -118,8 +115,8 @@ def run_export(
                 m.approximate = "tanh"
 
     dynamic_axes = {
-        "point_coords": {0: "batch_size", 1: "num_points"},
-        "point_labels": {0: "batch_size", 1: "num_points"},
+        "point_coords": {0: "batch_size"},
+        "point_labels": {0: "batch_size"},
     }
 
     embed_dim = efficientvit_sam.prompt_encoder.embed_dim
@@ -130,10 +127,10 @@ def run_export(
             1, embed_dim, *embed_size, dtype=torch.float
         ),
         "point_coords": torch.randint(
-            low=0, high=1024, size=(1, 5, 2), dtype=torch.float
+            low=0, high=1024, size=(1, 1, 2), dtype=torch.float
         ),
         "point_labels": torch.randint(
-            low=0, high=4, size=(1, 5), dtype=torch.float
+            low=0, high=4, size=(1, 1), dtype=torch.float
         ),
         "mask_input": torch.randn(1, 1, *mask_input_size, dtype=torch.float),
         "has_mask_input": torch.tensor([1], dtype=torch.float)
