@@ -192,6 +192,26 @@ def visualize_simple(img, face=None, landmark=None, gaze_pitchyaw=None, headpose
     
     return img
 
+def detect_face_original(img, session, score_thr=0.5, input_shape=(160, 128)) -> np.ndarray:
+    img, ratio = yolox_preprocess(img, input_shape)
+    ort_inputs = {session.get_inputs()[0].name: img[None, :, :, :]}
+    output = session.run(None, ort_inputs)
+    predictions = demo_postprocess(output[0], input_shape)[0]
+    boxes = predictions[:, :4]
+    scores = predictions[:, 4:5] * predictions[:, 5:]
+    boxes_xyxy = np.ones_like(boxes)
+    boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2]/2.
+    boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3]/2.
+    boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2]/2.
+    boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3]/2.
+    boxes_xyxy /= ratio
+    dets = multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=score_thr)
+    if dets is not None:
+        final_boxes, final_scores = dets[:, :4], dets[:, 4]
+        return np.array([[*final_box, final_score] for final_box, final_score in zip(final_boxes, final_scores)])
+    else:
+        return None
+
 def detect_face_trt(img, face_detection_engine, timer, score_thr=0.5, input_shape=(160, 128)) -> np.ndarray:
     img, ratio = yolox_preprocess(img, input_shape)
     full_image = torch.Tensor(img[None, :, :, :]).cuda()
