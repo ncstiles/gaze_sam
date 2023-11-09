@@ -30,7 +30,7 @@ def cat_images(image_list: List[np.ndarray], axis=1, pad=20) -> np.ndarray:
     image = np.concatenate(image_list, axis=axis)
     return image
 
-def show_anns(anns) -> None:
+def show_anns_original(anns) -> None:
     if len(anns) == 0:
         return
     sorted_anns = sorted(anns, key=(lambda x: x["area"]), reverse=True)
@@ -41,6 +41,23 @@ def show_anns(anns) -> None:
     img = np.ones((sorted_anns[0]["segmentation"].shape[0], sorted_anns[0]["segmentation"].shape[1], 4))
     img[:, :, 3] = 0
     for ann in sorted_anns:
+        m = ann["segmentation"]
+        color_mask = np.concatenate([np.random.random(3), [0.35]])
+        # color_mask = np.concatenate([(0, 0, 255), [0.35]])
+
+        img[m] = color_mask
+    ax.imshow(img)
+
+def show_anns(anns) -> None:
+    if len(anns) == 0:
+        return
+    print("num annotations:", len(anns))
+    ax = plt.gca()
+    ax.set_autoscale_on(False)
+
+    img = np.ones((anns[0]["segmentation"].shape[0], anns[0]["segmentation"].shape[1], 4))
+    img[:, :, 3] = 0
+    for ann in anns:
         m = ann["segmentation"]
         color_mask = np.concatenate([np.random.random(3), [0.35]])
         # color_mask = np.concatenate([(0, 0, 255), [0.35]])
@@ -66,7 +83,7 @@ def intersects_bb(mask, bbs): # get the largest percentage overlap that this mas
         
     return best_percentage
 
-def show_one_ann(anns, line_mask, bbs, center_pix) -> None:
+def show_one_ann_original(anns, line_mask, bbs, center_pix) -> None:
     if len(anns) == 0:
         return
     sorted_anns = sorted(anns, key=(lambda x: x["area"]), reverse=True)
@@ -116,6 +133,59 @@ def show_one_ann(anns, line_mask, bbs, center_pix) -> None:
     img[line_mask] = np.concatenate([[0, 255, 0], [0.5]])
 
     print(f"num masks: {len(sorted_anns)}")
+    print("img.shape:", img.shape)
+
+    ax.imshow(img) # this is important to keep the segmentations on the img
+
+def show_one_ann(anns, line_mask, bbs, center_pix) -> None:
+    if len(anns) == 0:
+        return
+    
+    print("num anns:", len(anns))
+
+    img = np.ones((anns[0]["segmentation"].shape[0], anns[0]["segmentation"].shape[1], 4))
+    img[:, :, 3] = 0
+    cv2.circle(img, (0,0), 5, (0, 255, 0), thickness=20)
+
+    percentage_to_mask = {}
+    for i, ann in enumerate(anns):
+        m = ann["segmentation"]
+        if check_self(m, center_pix): # dont want yourself
+            continue
+        intersection = np.logical_and(m, line_mask)
+        ix = np.argwhere(intersection)
+        if len(ix) > 0: # object crosses line of sight
+            percentage_intersection = intersects_bb(m, bbs)
+            percentage_to_mask[percentage_intersection] = (i, ix[0]) # v low chance of same thing, in this case, j replace
+                
+    color_mask = np.concatenate([[255, 0, 0], [0.35]])
+
+    if len(percentage_to_mask) == 0:
+        print("EMPTY PERCENTAGE TO MASK???")
+    
+    else:
+        # for p in percentage_to_mask:
+        #     max_percentage = max(percentage_to_mask)
+        #     print("max percentage_overlap:", max_percentage, percentage_to_mask)
+        #     mask_ix, point = percentage_to_mask[max_percentage]
+        #     mask_ix, point = percentage_to_mask[p]
+        #     mask = sorted_anns[mask_ix]['segmentation']
+        #     img[mask] = np.concatenate([np.random.random(3), [0.35]])
+
+        max_percentage = max(percentage_to_mask)
+        print("max percentage_overlap:", max_percentage, percentage_to_mask)
+        mask_ix, point = percentage_to_mask[max_percentage]
+        mask = anns[mask_ix]['segmentation']
+        img[mask] = color_mask
+        print("point:", point)
+        p = (point[1], point[0])
+        plt.scatter(*p, color='blue', marker='*', s=500, edgecolors="white", linewidths=1)
+
+    ax = plt.gca()
+    ax.set_autoscale_on(False) 
+    
+    img[line_mask] = np.concatenate([[0, 255, 0], [0.5]])
+
     print("img.shape:", img.shape)
 
     ax.imshow(img) # this is important to keep the segmentations on the img

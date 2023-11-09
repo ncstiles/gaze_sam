@@ -784,8 +784,6 @@ class EfficientViTSamAutomaticMaskGenerator():
         # Encode masks
         if self.output_mode == "coco_rle":
             mask_data["segmentations"] = [coco_encode_rle(rle) for rle in mask_data["rles"]]
-        elif self.output_mode == "binary_mask":
-            mask_data["segmentations"] = [rle_to_mask(rle) for rle in mask_data["rles"]]
         else:
             mask_data["segmentations"] = mask_data["rles"]
 
@@ -798,13 +796,14 @@ class EfficientViTSamAutomaticMaskGenerator():
         for idx in range(len(mask_data["segmentations"])):
             ann = {
                 "segmentation": mask_data["segmentations"][idx],
-                "area": area_from_rle(mask_data["rles"][idx]),
                 "bbox": box_xyxy_to_xywh(mask_data["boxes"][idx]).tolist(),
                 "predicted_iou": mask_data["iou_preds"][idx].item(),
                 "point_coords": [mask_data["points"][idx].tolist()],
                 "stability_score": mask_data["stability_score"][idx].item(),
                 "crop_box": box_xyxy_to_xywh(mask_data["crop_boxes"][idx]).tolist(),
             }
+            if self.output_mode != "binary_mask": # since we no longer have rle field for all mask types
+                ann["area"] = area_from_rle(mask_data["rles"][idx])
             curr_anns.append(ann)
         e = time.time()
 
@@ -867,6 +866,8 @@ class EfficientViTSamAutomaticMaskGenerator():
         print("\t\t\tcrop preprocess time:", b - a)
         self.predictor.set_image_trt(cropped_im)
         c = time.time()
+        self.predictor.set_image_trt(cropped_im)
+        cc = time.time()
         print("\t\t\tMASK ENCODER TIME:", c - b)
 
         # Get points for this crop
@@ -947,10 +948,13 @@ class EfficientViTSamAutomaticMaskGenerator():
         )
         del masks
 
+        d = time.time()
         # Filter by predicted IoU
         if self.pred_iou_thresh > 0.0:
             keep_mask = data["iou_preds"] > self.pred_iou_thresh
             data.filter(keep_mask)
+        
+        e = time.time()
 
         # Calculate stability score
         data["stability_score"] = calculate_stability_score(
@@ -960,22 +964,40 @@ class EfficientViTSamAutomaticMaskGenerator():
             keep_mask = data["stability_score"] >= self.stability_score_thresh
             data.filter(keep_mask)
 
+        f = time.time()
+
         # Threshold masks and calculate boxes
         data["masks"] = data["masks"] > self.predictor.model.mask_threshold
         data["boxes"] = batched_mask_to_box(data["masks"])
+
+        g = time.time()
 
         # Filter boxes that touch crop boundaries
         keep_mask = ~is_box_near_crop_edge(data["boxes"], crop_box, [0, 0, orig_w, orig_h])
         if not torch.all(keep_mask):
             data.filter(keep_mask)
 
+        h = time.time()
+
         # Compress to RLE
         data["masks"] = uncrop_masks(data["masks"], crop_box, orig_h, orig_w)
-        data["rles"] = mask_to_rle_pytorch(data["masks"])
+        i = time.time()
+        if self.output_mode == "binary_mask": # optimization: no rle compression. 
+            data["rles"] = data["masks"]
+        else:
+            data["rles"] = mask_to_rle_pytorch(data["masks"])
         del data["masks"]
 
-        d = time.time()
-        print("\t\t\t\tiou thresh filtering time:", d - c)
+        j = time.time()
+        print("\t\t\t\t\tconvert to MaskData class:", d - c)
+        print("\t\t\t\t\tiou filtering time:", e - d)
+        print("\t\t\t\t\tstability score filtering time:", f - e)
+        print("\t\t\t\t\tthresholding time:", g - f)
+        print("\t\t\t\t\tbox filtering time:", h - g)
+        print("\t\t\t\t\tmask uncrop time:", i - h)
+        print("\t\t\t\t\trle compression time:", j - i)
+        
+        print("\t\t\t\tbatch filtering time:", j - c)
 
         return data
 
