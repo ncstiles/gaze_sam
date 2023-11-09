@@ -30,17 +30,18 @@ from load_engine import *
 def get_cli_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="l1")
-    # parser.add_argument("--image_path", type=str, default="../base_imgs/fig/cat.jpg")
-    # parser.add_argument("--image_path", type=str, default="../base_imgs/gum.png")
-    # parser.add_argument("--output_path", type=str, default=f"out/{time.time()}.png")
-    # parser.add_argument("--gaze_start", type=str, default=f"[{717},{254}]")
-    # parser.add_argument("--gaze_end", type=str, default=f"[{424},{286}]")
-    parser.add_argument("--image_path", type=str, default="../base_imgs/workpls_v2.png")
+    # parser.add_argument("--image_path", type=str, default="../base_imgs/workpls_v2.png")
+    parser.add_argument("--image_path", type=str, default="../base_imgs/gum.png")
     parser.add_argument("--output_path", type=str, default=f"out/{time.time()}.png")
-    parser.add_argument("--gaze_start", type=str, default=f"[{746},{435}]")
-    parser.add_argument("--gaze_end", type=str, default=f"[{930},{434}]")
+    parser.add_argument("--gaze_start", type=str, default=f"[{717},{254}]")
+    parser.add_argument("--gaze_end", type=str, default=f"[{424},{286}]")
     args, _ = parser.parse_known_args()
     return args
+
+def prime_face_detection(trt_face_detection, timer):
+    image_path = "../base_imgs/psycho_out_onemask.png"
+    frame = np.array(Image.open(image_path).convert("RGB"))
+    detect_face_trt(frame, trt_face_detection, timer)
 
 
 def main():
@@ -83,6 +84,10 @@ def main():
 
     if raw_image.shape[0] * raw_image.shape[1] > 1280 * 720:
         raw_image = cv2.resize(raw_image, (1280, 720))
+
+    eee = time.time()
+    prime_face_detection(trt_face_detection, timer)
+    fff = time.time()
     
     bb = time.time()
 
@@ -94,9 +99,6 @@ def main():
     e = time.time()
     faces = detect_face_trt(frame, trt_face_detection, timer)
     f = time.time()
-    eee = time.time()
-    faces = detect_face_trt(frame, trt_face_detection, timer)
-    fff = time.time()
     if faces is not None:
         g = time.time()
         face = faces[0]
@@ -168,11 +170,11 @@ def main():
     
     print()
 
+    print("detect face priming run:", fff - eee)
     print("load img:", b - a)
     print("resize img:", bb - b)
     print("generate masks:", d - c)
-    print("detect face:", f - e)
-    print("detect face run 2:", fff - eee)
+    print("detect face (primed):", f - e)
     print("smooth + extract face:", h - g)
     print("detect landmark:", j - i)
     print("smooth landmark:", k - j)

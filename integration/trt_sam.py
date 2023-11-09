@@ -866,14 +866,11 @@ class EfficientViTSamAutomaticMaskGenerator():
         print("\t\t\tcrop preprocess time:", b - a)
         self.predictor.set_image_trt(cropped_im)
         c = time.time()
-        self.predictor.set_image_trt(cropped_im)
-        cc = time.time()
-        print("\t\t\tMASK ENCODER TIME:", c - b)
-
         # Get points for this crop
-        points_scale = np.array(cropped_im_size)[None, ::-1]
-        points_for_image = self.point_grids[crop_layer_idx] * points_scale
+        # points_scale = np.array(cropped_im_size)[None, ::-1]
+        # points_for_image = self.point_grids[crop_layer_idx] * points_scale
         d = time.time()
+        print("\t\t\tMASK ENCODER TIME:", c - b)
         print("\t\t\tpoint preprocessing time:", d - c)
 
         # Generate masks for this crop in batches
