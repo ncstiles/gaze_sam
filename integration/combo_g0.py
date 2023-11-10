@@ -36,12 +36,46 @@ def get_cli_args():
     parser.add_argument("--gaze_start", type=str, default=f"[{717},{254}]")
     parser.add_argument("--gaze_end", type=str, default=f"[{424},{286}]")
     args, _ = parser.parse_known_args()
-    return args
+    return args    
 
-def prime_face_detection(trt_face_detection, timer):
-    image_path = "../base_imgs/psycho_out_onemask.png"
+def preprocess(image):
+    from trt_sam import SamPad, SamResize
+    import torchvision.transforms as transforms
+
+    transform = transforms.Compose(
+        [
+            SamResize(512),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[123.675 / 255, 116.28 / 255, 103.53 / 255],
+                std=[58.395 / 255, 57.12 / 255, 57.375 / 255],
+            ),
+            SamPad(512),
+        ]
+    )
+    
+    return transform(image).unsqueeze(dim=0).cuda()
+
+def prime_gaze_engines(trt_face_detection, trt_landmark_detection, trt_gaze_estimation, gaze_smoother, landmark_smoother, bbox_smoother, timer):
+    image_path = "../base_imgs/cup.png"
     frame = np.array(Image.open(image_path).convert("RGB"))
-    detect_face_trt(frame, trt_face_detection, timer)
+    faces = detect_face_trt(frame, trt_face_detection, timer)
+
+    CURRENT_TIMESTAMP = timer.get_current_timestamp()
+    if faces is not None:
+        
+        face = faces[0]
+        x1, y1, x2, y2 = face[:4]
+        
+        [[x1,y1],[x2,y2]] = bbox_smoother([[x1,y1],[x2,y2]], t=CURRENT_TIMESTAMP)
+        face = np.array([x1,y1,x2,y2,face[-1]])        
+        
+        landmark, _, _ = detect_landmark_trt(frame, face, trt_landmark_detection, timer)
+        landmark = landmark_smoother(landmark, t=CURRENT_TIMESTAMP)
+        
+        gaze_pitchyaw, rvec, tvec = estimate_gaze_trt(frame, landmark, trt_gaze_estimation, timer)        
+        gaze_pitchyaw = gaze_smoother(gaze_pitchyaw, t=CURRENT_TIMESTAMP)
+    
 
 def prime_yolo(trt_yolo):
     image_path = "../base_imgs/psycho_out.png"
@@ -61,7 +95,7 @@ def main():
 
     # vit initialization
     trt_encoder_path = "engines/vit/encoder.engine"
-    trt_decoder_path = "engines/vit/decoder_g0.engine"
+    trt_decoder_path = "engines/vit/decoder_g0_batch_32.engine"
     efficientvit_sam = create_sam_model(args.model, True, None).cuda().eval()
     efficientvit_mask_generator = EfficientViTSamAutomaticMaskGenerator(efficientvit_sam, trt_encoder_path=trt_encoder_path, trt_decoder_path=trt_decoder_path)
 
@@ -95,7 +129,7 @@ def main():
         raw_image = cv2.resize(raw_image, (1280, 720))
 
     eee = time.time()
-    prime_face_detection(trt_face_detection, timer)
+    prime_gaze_engines(trt_face_detection, trt_landmark_detection, trt_gaze_estimation, gaze_smoother, landmark_smoother, bbox_smoother, timer)
     fff = time.time()
 
     yyy = time.time()
@@ -179,7 +213,7 @@ def main():
     
     print()
 
-    print("detect face priming run:", fff - eee)
+    print("all gaze engines priming run:", fff - eee)
     print("yolo priming run:", zzz - yyy)
 
     print()
@@ -188,11 +222,11 @@ def main():
     print("resize img:", bb - b)
     print("generate masks:", d - c)
     print("detect face (primed):", f - e)
-    print("smooth + extract face:", h - g)
-    print("detect landmark:", j - i)
-    print("smooth landmark:", k - j)
-    print("detect gaze:", l - k)
-    print("smooth gaze:", m - l)
+    print("smooth + extract face (primed):", h - g)
+    print("detect landmark (primed):", j - i)
+    print("smooth landmark (primed):", k - j)
+    print("detect gaze (primed):", l - k)
+    print("smooth gaze (primed):", m - l)
     print("visualize gaze:", o - n)
     print("create plots:", v - o)
     print("get gaze mask:", q - p)
