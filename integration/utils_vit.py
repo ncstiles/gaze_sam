@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 from typing import Any, Union, Tuple, Optional, List, Dict
 
@@ -137,7 +138,7 @@ def show_one_ann_original(anns, line_mask, bbs, center_pix) -> None:
 
     ax.imshow(img) # this is important to keep the segmentations on the img
 
-def show_one_ann(anns, line_mask, bbs, center_pix) -> None:
+def show_one_ann_no_rles(anns, line_mask, bbs, center_pix) -> None:
     if len(anns) == 0:
         return
     
@@ -190,6 +191,42 @@ def show_one_ann(anns, line_mask, bbs, center_pix) -> None:
 
     ax.imshow(img) # this is important to keep the segmentations on the img
 
+def show_one_ann(anns, line_mask, bbs, center_pix, raw_image) -> None:
+    alpha_channel = np.ones((raw_image.shape[0], raw_image.shape[1], 1), dtype=np.uint8) * 255
+    raw_image = np.concatenate((raw_image, alpha_channel), axis=2)
+
+    if len(anns) == 0:
+        return
+    
+    print("num anns:", len(anns))
+    print("img.shape:", raw_image.shape)
+
+    percentage_to_mask = {}
+    for i, ann in enumerate(anns):
+        m = ann["segmentation"]
+        if check_self(m, center_pix): # dont want yourself
+            continue
+        intersection = np.logical_and(m, line_mask)
+        ix = np.argwhere(intersection)
+        if len(ix) > 0: # object crosses line of sight
+            percentage_intersection = intersects_bb(m, bbs)
+            percentage_to_mask[percentage_intersection] = (i, ix[0]) # v low chance of same thing, in this case, j replace
+                
+    color_mask = np.concatenate([[255, 0, 0], [90]])
+
+    if len(percentage_to_mask) == 0:
+        print("EMPTY PERCENTAGE TO MASK???")
+    else:
+        max_percentage = max(percentage_to_mask)
+        print("max percentage_overlap:", max_percentage, percentage_to_mask)
+        mask_ix, point = percentage_to_mask[max_percentage]
+        mask = anns[mask_ix]['segmentation']
+        raw_image[mask] = color_mask
+        cv2.drawMarker(raw_image, point[::-1], color=(255, 255, 255), markerType=cv2.MARKER_STAR, markerSize=12, thickness=2) # star the segment point
+    
+    raw_image[line_mask] = np.concatenate([[0, 255, 0], [255]])
+
+    return raw_image
 
 def draw_binary_mask(raw_image: np.ndarray, binary_mask: np.ndarray, mask_color=(0, 0, 255)) -> np.ndarray:
     color_mask = np.zeros_like(raw_image, dtype=np.uint8)

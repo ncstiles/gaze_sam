@@ -30,7 +30,7 @@ from load_engine import *
 def get_cli_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="l1")
-    # parser.add_argument("--image_path", type=str, default="../base_imgs/fig/cat.jpg")
+    # parser.add_argument("--image_path", type=str, default="../base_imgs/workpls_v2.png")
     parser.add_argument("--image_path", type=str, default="../base_imgs/gum.png")
     parser.add_argument("--output_path", type=str, default=f"out/{time.time()}.png")
     parser.add_argument("--gaze_start", type=str, default=f"[{717},{254}]")
@@ -38,6 +38,18 @@ def get_cli_args():
     args, _ = parser.parse_known_args()
     return args
 
+def prime_face_detection(trt_face_detection, timer):
+    image_path = "../base_imgs/psycho_out_onemask.png"
+    frame = np.array(Image.open(image_path).convert("RGB"))
+    detect_face_trt(frame, trt_face_detection, timer)
+
+def prime_yolo(trt_yolo):
+    image_path = "../base_imgs/psycho_out.png"
+    raw_image = np.array(Image.open(image_path).convert("RGB"))
+    image_yolo = cv2.resize(raw_image, (640, 640)) # must be (640, 640) to be compatible with engine
+    expanded_img = np.transpose(np.expand_dims(image_yolo, axis=0), (0, 3, 1, 2))
+    yolo_img = torch.Tensor(expanded_img).cuda()
+    trt_yolo(yolo_img)
 
 def main():
     y = time.time()
@@ -49,9 +61,7 @@ def main():
 
     # vit initialization
     trt_encoder_path = "engines/vit/encoder.engine"
-    # trt_encoder_path = "engines/vit/encoder.engine"
-    # trt_decoder_path = "engines/vit/decoder.engine"
-    trt_decoder_path = "engines/vit/decoder.engine"
+    trt_decoder_path = "engines/vit/decoder_g0.engine"
     efficientvit_sam = create_sam_model(args.model, True, None).cuda().eval()
     efficientvit_mask_generator = EfficientViTSamAutomaticMaskGenerator(efficientvit_sam, trt_encoder_path=trt_encoder_path, trt_decoder_path=trt_decoder_path)
 
@@ -60,10 +70,11 @@ def main():
     landmark_smoother = LandmarkSmoother(OneEuroFilter, pt_num=98, min_cutoff=0.1, beta=1.0)
     bbox_smoother = LandmarkSmoother(OneEuroFilter, pt_num=2, min_cutoff=0.0, beta=1.0)
     
-    trt_face_detection = load_face_detection_engine("engines/gaze/face_detection.engine")
+    trt_face_detection = load_face_detection_engine("engines/gaze/face_detection_g0.engine")
     trt_landmark_detection = load_landmark_detection_engine("engines/gaze/landmark_detection.engine")
     trt_gaze_estimation = load_gaze_estimation_engine("engines/gaze/gaze_estimation.engine")
-    
+
+
     timer = Timer()
     timer.start_record("whole_pipeline")
     CURRENT_TIMESTAMP = timer.get_current_timestamp()
@@ -75,11 +86,21 @@ def main():
 
     # load image
     a = time.time()
-    raw_image = np.array(Image.open(args.image_path).convert("RGB"))
+    # raw_image = np.array(Image.open(args.image_path).convert("RGB"))
+    raw_image = cv2.imread(args.image_path)
+    raw_image = cv2.cvtColor(raw_image, cv2.COLOR_BGR2RGB)
     b = time.time()
 
     if raw_image.shape[0] * raw_image.shape[1] > 1280 * 720:
         raw_image = cv2.resize(raw_image, (1280, 720))
+
+    eee = time.time()
+    prime_face_detection(trt_face_detection, timer)
+    fff = time.time()
+
+    yyy = time.time()
+    prime_yolo(trt_yolo)
+    zzz = time.time()
     
     bb = time.time()
 
@@ -110,14 +131,6 @@ def main():
         
         gaze_pitchyaw = gaze_smoother(gaze_pitchyaw, t=CURRENT_TIMESTAMP)
         m = time.time()
-        timer.start_record("visualize")
-        n = time.time()
-        show_frame = visualize_simple(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
-        o = time.time()
-        timer.end_record("visualize")
-
-        timer.end_record("whole_pipeline")
-        # show_frame = timer.print_on_image(show_frame)
     
     p = time.time()
     gaze_points, gaze_mask = get_pixels_on_line(raw_image, args.gaze_start, args.gaze_end)
@@ -132,24 +145,33 @@ def main():
     image_yolo = cv2.resize(raw_image, (640, 640)) # must be (640, 640) to be compatible with engine
     expanded_img = np.transpose(np.expand_dims(image_yolo, axis=0), (0, 3, 1, 2))
     r = time.time()
+    yolo_img = torch.Tensor(expanded_img).cuda()
     ss = time.time()
-    predictions = trt_yolo(torch.Tensor(expanded_img).cuda())
+    predictions = trt_yolo(yolo_img)
     s = time.time()
-    visualize_bounding_boxes(raw_image, predictions, raw_image.shape[:2])
+    bounding_boxes = visualize_bounding_boxes(raw_image, predictions, raw_image.shape[:2])
     t = time.time()
-    bounding_boxes = get_bounding_boxes(predictions, raw_image.shape[:2])
     u = time.time()
 
+    timer.start_record("visualize")
+    n = time.time()
+    # show_frame = visualize_simple(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
+    show_frame = visualize(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
+    o = time.time()
+    timer.end_record("visualize")
+    timer.end_record("whole_pipeline")
+    # show_frame = timer.print_on_image(show_frame)
+    
     # visualize
-    plt.figure(figsize=(20, 20))
-    plt.imshow(raw_image)
     v = time.time()
     # show_anns(masks)
-    show_one_ann(masks, gaze_mask, bounding_boxes, args.gaze_start)
+    raw_image = show_one_ann(masks, gaze_mask, bounding_boxes, args.gaze_start, raw_image)
     
     w = time.time()
     plt.axis("off")
-    plt.savefig(args.output_path, format="png", dpi=300, bbox_inches="tight", pad_inches=0.0)
+    plt.imshow(raw_image)
+    xx = time.time()
+    plt.savefig(f"{args.output_path}", format="png", dpi=300, bbox_inches="tight", pad_inches=0.0)
     x = time.time()
 
     print("full without load time:", time.time() - a)
@@ -157,28 +179,33 @@ def main():
     
     print()
 
+    print("detect face priming run:", fff - eee)
+    print("yolo priming run:", zzz - yyy)
+
+    print()
+
     print("load img:", b - a)
     print("resize img:", bb - b)
     print("generate masks:", d - c)
-    print("detect face:", f - e)
+    print("detect face (primed):", f - e)
     print("smooth + extract face:", h - g)
     print("detect landmark:", j - i)
     print("smooth landmark:", k - j)
     print("detect gaze:", l - k)
     print("smooth gaze:", m - l)
     print("visualize gaze:", o - n)
+    print("create plots:", v - o)
     print("get gaze mask:", q - p)
     print("prep yolo img:", r - qq)
     print("yolo img torch:", ss - r)
     print("yolo pred:", s - ss)
-    print("visualize yolo:", t - s)
-    print("get bounding boxes:", u - t)
-    print("show non-mask img:", v - u)
+    print("draw and get yolo boxes:", t - s)
     print("segment one mask:", w - v)
 
     print()
-    
-    print("save to file:", x - w)
+
+    print("display image:", xx - w)
+    print(f"save to file ({args.output_path}):", x - w)
     print("non-load total:", w - e)
     print("load total:", z - y)
 
