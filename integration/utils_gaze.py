@@ -364,6 +364,7 @@ def find_edge_intersection(w, h, start, end):
 
 def get_pixels_on_line(img, start_point, end_point):
     """
+    Use's Bresenham's Line Algorithm
     Get all pixel coordinates that lie on a line between start_point and end_point.
 
     Parameters:
@@ -378,35 +379,22 @@ def get_pixels_on_line(img, start_point, end_point):
     x1, y1 = start_point
     x2, y2 = find_edge_intersection(w, h, start_point, end_point)
 
-    print("H:", h, "W:", w)
-
-    print("edge intersection:", x2, y2)
-
     # Calculate differences and absolute differences between points
     dx = abs(x2 - x1)
     dy = abs(y2 - y1)
 
     # Determine the direction along the x and y axes
-    if x1 < x2:
-        x_increment = 1
-    else:
-        x_increment = -1
-
-    if y1 < y2:
-        y_increment = 1
-    else:
-        y_increment = -1
+    x_increment = 1 if x1 < x2 else -1
+    y_increment = 1 if y1 < y2 else -1
 
     # Initialize error values and the current position
     error = dx - dy
-    x = x1
-    y = y1
+    x, y = x1, y1
 
     x_vals, y_vals = [], []
 
     # Iterate through the line and add pixels to the result
-    # while 0<=x<H and 0<=y<W:
-    while 0<=x<w and 0<=y<h:
+    while 0 <= x < w and 0 <= y < h:
         # Add the current pixel to the list
         x_vals.append(x)
         y_vals.append(y)
@@ -423,13 +411,9 @@ def get_pixels_on_line(img, start_point, end_point):
     # Add the last pixel (end_point) to the list
     x_vals.append(x2)
     y_vals.append(y2)
-    
-    gaze_points = np.array([(x,y) for x,y in zip(x_vals, y_vals)])
 
-    # for x, y in zip(x_vals, y_vals):
-    #     cv2.circle(img, (x,y), 1, (255, 0, 0), thickness=1)
+    gaze_points = np.column_stack((x_vals, y_vals))
+    mask = np.zeros((h, w), dtype=bool)
+    mask[y_vals, x_vals] = True
 
-    mask = np.zeros((h, w))
-    mask[y_vals, x_vals] = 1
-
-    return gaze_points, mask.astype(bool)
+    return gaze_points, mask
