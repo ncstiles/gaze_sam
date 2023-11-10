@@ -206,11 +206,9 @@ def show_one_ann(anns, line_mask, bbs, center_pix, raw_image) -> None:
         m = ann["segmentation"]
         if check_self(m, center_pix): # dont want yourself
             continue
-        intersection = np.logical_and(m, line_mask)
-        ix = np.argwhere(intersection)
-        if len(ix) > 0: # object crosses line of sight
-            percentage_intersection = intersects_bb(m, bbs)
-            percentage_to_mask[percentage_intersection] = (i, ix[0]) # v low chance of same thing, in this case, j replace
+        
+        percentage_intersection = intersects_bb(m, bbs)
+        percentage_to_mask[percentage_intersection] = i # v low chance of same thing, in this case, j replace
                 
     color_mask = np.concatenate([[255, 0, 0], [90]])
 
@@ -219,8 +217,11 @@ def show_one_ann(anns, line_mask, bbs, center_pix, raw_image) -> None:
     else:
         max_percentage = max(percentage_to_mask)
         print("max percentage_overlap:", max_percentage, percentage_to_mask)
-        mask_ix, point = percentage_to_mask[max_percentage]
+        mask_ix = percentage_to_mask[max_percentage]
         mask = anns[mask_ix]['segmentation']
+        intersection = np.logical_and(mask, line_mask)
+        ix = np.argwhere(intersection)
+        point = ix[0]
         raw_image[mask] = color_mask
         cv2.drawMarker(raw_image, point[::-1], color=(255, 255, 255), markerType=cv2.MARKER_STAR, markerSize=12, thickness=2) # star the segment point
     
