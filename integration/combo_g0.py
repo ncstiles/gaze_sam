@@ -53,8 +53,40 @@ def preprocess(image):
             SamPad(512),
         ]
     )
-    
     return transform(image).unsqueeze(dim=0).cuda()
+
+
+def prime_encoder_decoder(trt_encoder_path, trt_decoder_path, image):
+    encoder = load_image_encoder_engine(trt_encoder_path)
+    decoder = load_mask_decoder_engine(trt_decoder_path)
+
+    image_path = "../base_imgs/cup.png"
+    image = np.array(Image.open(image_path).convert("RGB"))
+
+    aa = time.time()
+    preprocessed_image = preprocess(image)
+    bb = time.time()
+        
+    print("encoder preprocess time:", bb - aa)
+
+    for i in range(2):
+        a = time.time()
+        features = encoder(preprocessed_image)
+        b = time.time()
+
+        mask_input = torch.tensor(np.zeros((1, 1, 256, 256), dtype=np.float32)).cuda()
+        has_mask_input = torch.tensor(np.zeros(1, dtype=np.float32)).cuda()
+
+        point_coords = torch.randint(low=0, high=1024, size=(32, 1, 2), dtype=torch.float).cuda()
+        point_labels = torch.randint(low=0, high=4, size=(32, 1), dtype=torch.float).cuda()
+
+        c = time.time()
+        decoder(features, point_coords, point_labels, mask_input, has_mask_input)
+        d = time.time()
+
+        print("prep encoder time:", b - a)
+        print("prep decoder time:", d - c)
+
 
 def prime_gaze_engines(trt_face_detection, trt_landmark_detection, trt_gaze_estimation, gaze_smoother, landmark_smoother, bbox_smoother, timer):
     image_path = "../base_imgs/cup.png"
@@ -127,6 +159,10 @@ def main():
 
     if raw_image.shape[0] * raw_image.shape[1] > 1280 * 720:
         raw_image = cv2.resize(raw_image, (1280, 720))
+    
+    ggg = time.time()
+    prime_encoder_decoder(trt_encoder_path, trt_decoder_path, raw_image)
+    hhh = time.time()
 
     eee = time.time()
     prime_gaze_engines(trt_face_detection, trt_landmark_detection, trt_gaze_estimation, gaze_smoother, landmark_smoother, bbox_smoother, timer)
@@ -213,6 +249,7 @@ def main():
     
     print()
 
+    print("encoder/decoder priming run:", hhh - ggg)
     print("all gaze engines priming run:", fff - eee)
     print("yolo priming run:", zzz - yyy)
 
