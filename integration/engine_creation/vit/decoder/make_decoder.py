@@ -127,10 +127,10 @@ def run_export(
             1, embed_dim, *embed_size, dtype=torch.float
         ),
         "point_coords": torch.randint(
-            low=0, high=1024, size=(1, 1, 2), dtype=torch.float
+            low=0, high=1024, size=(32, 1, 2), dtype=torch.float
         ),
         "point_labels": torch.randint(
-            low=0, high=4, size=(1, 1), dtype=torch.float
+            low=0, high=4, size=(32, 1), dtype=torch.float
         ),
         "mask_input": torch.randn(1, 1, *mask_input_size, dtype=torch.float),
         "has_mask_input": torch.tensor([1], dtype=torch.float)

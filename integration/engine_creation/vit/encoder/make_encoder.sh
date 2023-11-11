@@ -1,5 +1,6 @@
-ONNXPATH="../../../engines/vit/onnx/encode_k2.onnx"
-ENGINEPATH="../../../engines/vit/encoder_fp16_k2.engine"
+ONNXPATH="../../../engines/vit/onnx/encoder_k9_fp32.onnx"
+ENGINEPATH="../../../engines/vit/encoder_k9_fp32.engine"
+
 echo "export efficientvit sam encoder (no built-in preprocessing)>>>"
 
 python -m make_encoder \

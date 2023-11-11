@@ -1,5 +1,5 @@
-ONNXPATH="../../../engines/vit/onnx/decoder_k2.onnx"
-ENGINEPATH="../../../engines/vit/decoder_fp32_k2.engine"
+ONNXPATH="../../../engines/vit/onnx/decoder_k9_fp32.onnx"
+ENGINEPATH="../../../engines/vit/decoder_k9_fp32.engine"
 echo "export efficientvit sam decoder >>>"
 
 python -m make_decoder \

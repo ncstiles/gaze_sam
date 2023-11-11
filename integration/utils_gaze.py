@@ -305,8 +305,6 @@ def estimate_gaze_trt(img, landmark, gaze_estimation_engine, timer) -> np.ndarra
     face_image = np.transpose(np.expand_dims(face_image, 0), (0,3,1,2))
     face_image = torch.Tensor(face_image).cuda()
 
-    print("leye, reye, face shape:", leye_image.shape, reye_image.shape, face_image.shape)
-
     timer.start_record("gaze_estimation")
     pred_pitchyaw_aligned = gaze_estimation_engine(leye_image, reye_image, face_image).detach().cpu().numpy()
     pred_pitchyaw_aligned = pred_pitchyaw_aligned[0]
