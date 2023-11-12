@@ -114,10 +114,11 @@ def run_export(
             if isinstance(m, torch.nn.GELU):
                 m.approximate = "tanh"
 
-    dynamic_axes = {
-        "point_coords": {0: "batch_size"},
-        "point_labels": {0: "batch_size"},
-    }
+    # dynamic_axes = {
+    #     "point_coords": {0: "batch_size"},
+    #     "point_labels": {0: "batch_size"},
+    # }
+    dynamic_axes = None
 
     embed_dim = efficientvit_sam.prompt_encoder.embed_dim
     embed_size = efficientvit_sam.prompt_encoder.image_embedding_size

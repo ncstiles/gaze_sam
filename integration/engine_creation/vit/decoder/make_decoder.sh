@@ -1,5 +1,5 @@
-ONNXPATH="../../../engines/vit/onnx/decoder_k9_fp32.onnx"
-ENGINEPATH="../../../engines/vit/decoder_k9_fp32.engine"
+ONNXPATH="../../../engines/vit/onnx/decoder_k9_fp32_fixed_size.onnx"
+ENGINEPATH="../../../engines/vit/decoder_k9_fp32_fixed_size.engine"
 echo "export efficientvit sam decoder >>>"
 
 python -m make_decoder \
@@ -16,7 +16,7 @@ echo "--- creating trt engine ---"
 /home/nicole/TensorRT-8.4.3.1/bin/trtexec \
     --onnx=$ONNXPATH \
     --saveEngine=$ENGINEPATH \
-    --minShapes=point_coords:1x1x2,point_labels:1x1 \
-    --optShapes=point_coords:32x1x2,point_labels:32x1 \
-    --maxShapes=point_coords:32x1x2,point_labels:32x1 \
+    # --minShapes=point_coords:32x1x2,point_labels:32x1 \
+    # --optShapes=point_coords:32x1x2,point_labels:32x1 \
+    # --maxShapes=point_coords:32x1x2,point_labels:32x1 \
     # --fp16
