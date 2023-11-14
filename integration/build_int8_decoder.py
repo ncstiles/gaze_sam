@@ -22,7 +22,7 @@ import argparse
 
 import numpy as np
 import tensorrt as trt
-from cuda import cudart
+from cuda import cuda, cudart
 
 
 # sys.path.insert(1, os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
@@ -30,14 +30,36 @@ tensorrt_samples_path = "/home/nicole/TensorRT-8.4.3.1/samples"
 sys.path.insert(1, tensorrt_samples_path)
 import common
 
-# from image_batcher import ImageBatcher
+from image_batcher import ImageBatcher
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("EngineBuilder").setLevel(logging.INFO)
 log = logging.getLogger("EngineBuilder")
 
+# copying from common.py in branch 3aaa97b
+def check_cuda_err(err):
+    if isinstance(err, cuda.CUresult):
+        if err != cuda.CUresult.CUDA_SUCCESS:
+            raise RuntimeError("Cuda Error: {}".format(err))
+    if isinstance(err, cudart.cudaError_t):
+        if err != cudart.cudaError_t.cudaSuccess:
+            raise RuntimeError("Cuda Runtime Error: {}".format(err))
+    else:
+        raise RuntimeError("Unknown error type: {}".format(err))
+    
+def cuda_call(call):
+    err, res = call[0], call[1:]
+    check_cuda_err(err)
+    if len(res) == 1:
+        res = res[0]
+    return res
+
+def memcpy_host_to_device(device_ptr: int, host_arr: np.ndarray):
+    nbytes = host_arr.size * host_arr.itemsize
+    cuda_call(cudart.cudaMemcpy(device_ptr, host_arr, nbytes, cudart.cudaMemcpyKind.cudaMemcpyHostToDevice))
 
 class EngineCalibrator(trt.IInt8EntropyCalibrator2):
+# class EngineCalibrator(trt.IInt8MinMaxCalibrator):
     """
     Implements the INT8 Entropy Calibrator 2.
     """
@@ -52,16 +74,19 @@ class EngineCalibrator(trt.IInt8EntropyCalibrator2):
         self.batch_allocation = None
         self.batch_generator = None
 
-    # def set_image_batcher(self, image_batcher: ImageBatcher):
-    #     """
-    #     Define the image batcher to use, if any. If using only the cache file, an image batcher doesn't need
-    #     to be defined.
-    #     :param image_batcher: The ImageBatcher object
-    #     """
-    #     self.image_batcher = image_batcher
-    #     size = int(np.dtype(self.image_batcher.dtype).itemsize * np.prod(self.image_batcher.shape))
-    #     self.batch_allocation = common.cuda_call(cudart.cudaMalloc(size))
-    #     self.batch_generator = self.image_batcher.get_batch()
+    def set_image_batcher(self, image_batcher: ImageBatcher):
+        """
+        Define the image batcher to use, if any. If using only the cache file, an image batcher doesn't need
+        to be defined.
+        :param image_batcher: The ImageBatcher object
+        """
+        self.image_batcher = image_batcher
+        size = int(np.dtype(self.image_batcher.dtype).itemsize * np.prod(self.image_batcher.shape))
+        # self.batch_allocation = common.cuda_call(cudart.cudaMalloc(size)) # think the only thing cuda_call does is error check, but TensorRT 8.4.1 doesn't have this function (does exist in the github repo)
+        # self.batch_allocation = cudart.cudaMalloc(size)
+        self.batch_allocation = cuda_call(cudart.cudaMalloc(size))
+
+        self.batch_generator = self.image_batcher.get_batch()
 
     def get_batch_size(self):
         """
@@ -83,11 +108,16 @@ class EngineCalibrator(trt.IInt8EntropyCalibrator2):
         if not self.image_batcher:
             return None
         try:
-            batch, _ = next(self.batch_generator)
+            print("about to do a call to the batch generator")
+            batch = next(self.batch_generator)
+            print("finished call to image batcher")
             log.info("Calibrating image {} / {}".format(self.image_batcher.image_index, self.image_batcher.num_images))
-            common.memcpy_host_to_device(self.batch_allocation, np.ascontiguousarray(batch))
+            # common.memcpy_host_to_device(self.batch_allocation, np.ascontiguousarray(batch))
+            memcpy_host_to_device(self.batch_allocation, np.ascontiguousarray(batch)) 
+            print("returning from get batch:", [int(self.batch_allocation)])
             return [int(self.batch_allocation)]
         except StopIteration:
+            print("stop iteration error")
             log.info("Finished calibration batches")
             return None
 
@@ -130,7 +160,7 @@ class EngineBuilder:
 
         self.builder = trt.Builder(self.trt_logger)
         self.config = self.builder.create_builder_config()
-        self.config.max_workspace_size = 8 * (2 ** 30)  # 8 GB
+        self.config.max_workspace_size = 100 * (2 ** 30)  # old was 8 GB, but said it wasn't enough memory for all tactics
 
         self.batch_size = None
         self.network = None
@@ -200,24 +230,29 @@ class EngineBuilder:
                 self.config.set_flag(trt.BuilderFlag.FP16)
         elif precision == "int8":
             if not self.builder.platform_has_fast_int8:
+                print("no int8")
                 log.warning("INT8 is not supported natively on this platform/device")
             else:
-                print("shouldn't get into this case")
+                print("attempting int8 quantization")
                 self.config.set_flag(trt.BuilderFlag.INT8)
                 self.config.int8_calibrator = EngineCalibrator(calib_cache)
                 if not os.path.exists(calib_cache):
                     calib_shape = [calib_batch_size] + list(inputs[0].shape[1:])
                     calib_dtype = trt.nptype(inputs[0].dtype)
-                    # self.config.int8_calibrator.set_image_batcher(
-                    #     ImageBatcher(
-                    #         calib_input,
-                    #         calib_shape,
-                    #         calib_dtype,
-                    #         max_num_images=calib_num_images,
-                    #         exact_batches=True,
-                    #         preprocessor=calib_preprocessor,
-                    #     )
-                    # )
+                    print("calib shape:", calib_shape)
+                    print("calib dtype:", calib_dtype)
+                    print("max_num_images:", calib_num_images)
+                    # print("preprocessor:", calib_preprocessor)
+                    self.config.int8_calibrator.set_image_batcher(
+                        ImageBatcher(
+                            calib_input,
+                            calib_shape,
+                            calib_dtype,
+                            max_num_images=calib_num_images,
+                            exact_batches=True,
+                            # preprocessor=calib_preprocessor,
+                        )
+                    )
 
         with self.builder.build_engine(self.network, self.config) as engine, open(engine_path, "wb") as f:
             log.info("Serializing engine to file: {:}".format(engine_path))
@@ -234,7 +269,7 @@ def main(args):
         args.calib_cache,
         args.calib_num_images,
         args.calib_batch_size,
-        args.calib_preprocessor,
+        # args.calib_preprocessor,
     )
 
 
@@ -263,7 +298,7 @@ if __name__ == "__main__":
         help="The maximum number of images to use for calibration, default: 25000",
     )
     parser.add_argument(
-        "--calib_batch_size", default=8, type=int, help="The batch size for the calibration process, default: 1"
+        "--calib_batch_size", default=8, type=int, help="The batch size for the calibration process, default: 8"
     )
     parser.add_argument(
         "--calib_preprocessor",
