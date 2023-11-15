@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import cv2
 import os
 import sys
 import numpy as np
@@ -35,7 +36,7 @@ class ImageBatcher:
     Creates batches of pre-processed images.
     """
 
-    def __init__(self, input, shape, dtype, max_num_images=None, exact_batches=False, config_file=None):
+    def __init__(self, input, shape, dtype, encoder, max_num_images=None, exact_batches=False, config_file=None):
         """
         :param input: The input directory to read images from.
         :param shape: The tensor shape of the batch to prepare, either in NCHW or NHWC format.
@@ -46,22 +47,6 @@ class ImageBatcher:
         last few images in excess of a batch size multiple, to guarantee batches are exact (useful for calibration).
         :param config_file: The path pointing to the Detectron 2 yaml file which describes the model.
         """
-
-        # def det2_setup(config_file):
-        #     """
-        #     Create configs and perform basic setups.
-        #     """
-        #     cfg = get_cfg()
-        #     cfg.merge_from_file(config_file)
-        #     cfg.freeze()
-        #     return cfg
-
-        # # Set up Detectron 2 model configuration.
-        # self.det2_cfg = det2_setup(config_file)
-
-        # Extract min and max dimensions for testing.
-        # self.min_size_test = self.det2_cfg.INPUT.MIN_SIZE_TEST
-        # self.max_size_test = self.det2_cfg.INPUT.MAX_SIZE_TEST
 
         # Find images in the given input path.
         input = os.path.realpath(input)
@@ -86,23 +71,31 @@ class ImageBatcher:
         print("num images:", self.num_images)
 
         # Handle Tensor Shape.
+        self.shapes = {
+            "image_embeddings": (1, 256, 64, 64), 
+            "point_coords": (32, 1, 2), 
+            "point_labels": (32, 1),
+            "mask_input": (1, 1, 256, 256),
+            "has_mask_input": (1,)
+        }
         self.dtype = dtype
-        self.shape = shape
-        assert len(self.shape) == 4
-        self.batch_size = shape[0]
-        assert self.batch_size > 0
-        self.format = None
-        self.width = -1
-        self.height = -1
-        if self.shape[1] == 3:
-            self.format = "NCHW"
-            self.height = self.shape[2]
-            self.width = self.shape[3]
-        elif self.shape[3] == 3:
-            self.format = "NHWC"
-            self.height = self.shape[1]
-            self.width = self.shape[2]
-        assert all([self.format, self.width > 0, self.height > 0])
+        self.batch_size = 1 # TODO: remove later
+        # self.shape = shape
+        # assert len(self.shape) == 4
+        # self.batch_size = shape[0]
+        # assert self.batch_size > 0
+        # self.format = None
+        # self.width = -1
+        # self.height = -1
+        # if self.shape[1] == 3:
+        #     self.format = "NCHW"
+        #     self.height = self.shape[2]
+        #     self.width = self.shape[3]
+        # elif self.shape[3] == 3:
+        #     self.format = "NHWC"
+        #     self.height = self.shape[1]
+        #     self.width = self.shape[2]
+        # assert all([self.format, self.width > 0, self.height > 0])
 
         # Adapt the number of images as needed.
         if max_num_images and 0 < max_num_images < len(self.images):
@@ -126,72 +119,9 @@ class ImageBatcher:
         self.image_index = 0
         self.batch_index = 0
 
+        # Load encoder.
+        self.encoder = encoder
 
-    # def preprocess_image(self, image_path):
-    #     """
-    #     The image preprocessor loads an image from disk and prepares it as needed for batching. This includes padding,
-    #     resizing, normalization, data type casting, and transposing.
-    #     This Image Batcher implements one algorithm for now:
-    #     * Resizes and pads the image to fit the input size.
-    #     :param image_path: The path to the image on disk to load.
-    #     :return: Two values: A numpy array holding the image sample, ready to be contacatenated into the rest of the
-    #     batch, and the resize scale used, if any.
-    #     """
-
-    #     def resize_pad(image, pad_color=(0, 0, 0)):
-    #         """
-    #         A subroutine to implement padding and resizing. This will resize the image to fit fully within the input
-    #         size, and pads the remaining bottom-right portions with the value provided.
-    #         :param image: The PIL image object
-    #         :pad_color: The RGB values to use for the padded area. Default: Black/Zeros.
-    #         :return: Two values: The PIL image object already padded and cropped, and the resize scale used.
-    #         """
-
-    #         # Get characteristics.
-    #         width, height = image.size
-
-    #         # Replicates behavior of ResizeShortestEdge augmentation.
-    #         # size = self.min_size_test * 1.0
-    #         size = 1.0
-
-    #         pre_scale = size / min(height, width)
-    #         if height < width:
-    #             newh, neww = size, pre_scale * width
-    #         else:
-    #             newh, neww = pre_scale * height, size
-
-    #         # If delta between min and max dimensions is so that max sized dimension reaches self.max_size_test
-    #         # before min dimension reaches self.min_size_test, keeping the same aspect ratio. We still need to
-    #         # maintain the same aspect ratio and keep max dimension at self.max_size_test.
-    #         # if max(newh, neww) > self.max_size_test:
-    #         #     pre_scale = self.max_size_test * 1.0 / max(newh, neww)
-    #         #     newh = newh * pre_scale
-    #         #     neww = neww * pre_scale
-    #         neww = int(neww + 0.5)
-    #         newh = int(newh + 0.5)
-
-    #         # Scaling factor for normalized box coordinates scaling in post-processing.
-    #         scaling = max(newh/height, neww/width)
-
-    #         # Padding.
-    #         image = image.resize((neww, newh), resample=Image.BILINEAR)
-    #         pad = Image.new("RGB", (self.width, self.height))
-    #         pad.paste(pad_color, [0, 0, self.width, self.height])
-    #         pad.paste(image)
-    #         return pad, scaling
-
-    #     scale = None
-    #     image = Image.open(image_path)
-    #     image = image.convert(mode='RGB')
-    #     # Pad with mean values of COCO dataset, since padding is applied before actual model's
-    #     # preprocessor steps (Sub, Div ops), we need to pad with mean values in order to reverse
-    #     # the effects of Sub and Div, so that padding after model's preprocessor will be with actual 0s.
-    #     image, scale = resize_pad(image, (124, 116, 104))
-    #     image = np.asarray(image, dtype=np.float32)
-    #     # Change HWC -> CHW.
-    #     image = np.transpose(image, (2, 0, 1))
-    #     # Change RGB -> BGR.
-    #     return image[[2,1,0]], scale
 
     def preprocess_image(self, image_path):
         """
@@ -215,9 +145,11 @@ class ImageBatcher:
                     SamPad(512),
                 ]
             )
-            return transform(image).unsqueeze(dim=0).numpy()
+            return transform(image).unsqueeze(dim=0).cuda()
 
         raw_image = np.asarray(Image.open(image_path).convert("RGB"))
+        if raw_image.shape[0] * raw_image.shape[1] > 1280 * 720:
+            raw_image = cv2.resize(raw_image, 1280, 720)
         image = preprocess(raw_image)
 
         return image
@@ -231,47 +163,40 @@ class ImageBatcher:
         :return: A generator yielding three items per iteration: a numpy array holding a batch of images, the list of
         paths to the images loaded within this batch, and the list of resize scales for each image in the batch.
         """
-        for i, batch_images in enumerate(self.batches):
-            batch_data = np.zeros(self.shape, dtype=self.dtype)
+        print("dtype:", self.dtype)
+        point_coords = np.array([[717, 254],[695, 256], [673, 259], [651, 261], [629, 264], [607, 266], [585, 268], [563, 271],
+                                [541, 273], [519, 276], [497, 278], [475, 280], [453, 283], [431, 285], [409, 288], [387, 290],
+                                [365, 292], [343, 295], [321, 297], [299, 299], [277, 302], [255, 304], [233, 307], [211, 309],
+                                [189, 311], [167, 314], [145, 316], [123, 319], [101, 321], [ 79, 323], [ 57, 326], [ 35, 328]],
+                                dtype=self.dtype)
+        point_labels = np.ones((32,1), dtype=self.dtype)
+        mask_input = np.zeros((1, 1, 256, 256), dtype=self.dtype)
+        has_mask_input = np.zeros((1), dtype=self.dtype)
 
-            for i, image in enumerate(batch_images):
+        print('point coords shape:', point_coords.shape)
+        print('point label shape:', point_labels.shape)
+        print('mask input shape:', mask_input.shape)
+        print('has mask input:', has_mask_input.shape)
+
+
+        for batch_images in self.batches:
+            image_embeddings =  np.zeros((1, 254, 64, 64), dtype=self.dtype)
+            print("NUM BATCH IMGS:", len(batch_images))
+
+            for image in batch_images:
                 self.image_index += 1
-                batch_data[i] = self.preprocess_image(image)
+                print("about to preprocess img")
+                preprocessed_image = self.preprocess_image(image)
+                print("done preprocessing img, feeding into encoder")
+                image_embeddings = self.encoder(preprocessed_image)
+                print("done ran the encoder")
+                print("img_embedding shape:", image_embeddings.shape)
+                print(f'\tmin: {min(image_embeddings)} max: {max(image_embeddings)}')
             self.batch_index += 1
-            yield batch_data
-    
-    # def get_batch(self):
-    #     """
-    #     Retrieve the batches. This is a generator object, so you can use it within a loop as:
-    #     for batch, images in batcher.get_batch():
-    #        ...
-    #     Or outside of a batch with the next() function.
-    #     :return: A generator yielding three items per iteration: a numpy array holding a batch of images, the list of
-    #     paths to the images loaded within this batch, and the list of resize scales for each image in the batch.
-    #     """
-    #     for i, batch_images in enumerate(self.batches):
-    #         batch_data = np.zeros(self.shape, dtype=self.dtype)
-    #         batch_scales = [None] * len(batch_images)
-    #         for i, image in enumerate(batch_images):
-    #             self.image_index += 1
-    #             batch_data[i], batch_scales[i] = self.preprocess_image(image)
-    #         self.batch_index += 1
-    #         yield batch_data, batch_images
-
-    # def get_batch(self):
-    #     """
-    #     Retrieve the batches. This is a generator object, so you can use it within a loop as:
-    #     for batch, images in batcher.get_batch():
-    #        ...
-    #     Or outside of a batch with the next() function.
-    #     :return: A generator yielding three items per iteration: a numpy array holding a batch of images, the list of
-    #     paths to the images loaded within this batch, and the list of resize scales for each image in the batch.
-    #     """
-    #     for i, batch_images in enumerate(self.batches):
-    #         batch_data = np.zeros(self.shape, dtype=self.dtype)
-    #         batch_scales = [None] * len(batch_images)
-    #         for i, image in enumerate(batch_images):
-    #             self.image_index += 1
-    #             batch_data[i], batch_scales[i] = self.preprocess_image(image)
-    #         self.batch_index += 1
-    #         yield batch_data, batch_images, batch_scales
+            yield {
+                "image_embeddings": image_embeddings.detach().cpu().numpy(),
+                "point_coords": point_coords,
+                "point_labels": point_labels,
+                "mask_input": mask_input,
+                "has_mask_input": has_mask_input
+            }

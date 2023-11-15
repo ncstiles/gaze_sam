@@ -24,11 +24,12 @@ import numpy as np
 import tensorrt as trt
 from cuda import cuda, cudart
 
+from load_engine import load_image_encoder_engine
+
 
 # sys.path.insert(1, os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
 tensorrt_samples_path = "/home/nicole/TensorRT-8.4.3.1/samples"
 sys.path.insert(1, tensorrt_samples_path)
-import common
 
 from image_batcher import ImageBatcher
 
@@ -59,7 +60,6 @@ def memcpy_host_to_device(device_ptr: int, host_arr: np.ndarray):
     cuda_call(cudart.cudaMemcpy(device_ptr, host_arr, nbytes, cudart.cudaMemcpyKind.cudaMemcpyHostToDevice))
 
 class EngineCalibrator(trt.IInt8EntropyCalibrator2):
-# class EngineCalibrator(trt.IInt8MinMaxCalibrator):
     """
     Implements the INT8 Entropy Calibrator 2.
     """
@@ -81,10 +81,11 @@ class EngineCalibrator(trt.IInt8EntropyCalibrator2):
         :param image_batcher: The ImageBatcher object
         """
         self.image_batcher = image_batcher
-        size = int(np.dtype(self.image_batcher.dtype).itemsize * np.prod(self.image_batcher.shape))
-        # self.batch_allocation = common.cuda_call(cudart.cudaMalloc(size)) # think the only thing cuda_call does is error check, but TensorRT 8.4.1 doesn't have this function (does exist in the github repo)
-        # self.batch_allocation = cudart.cudaMalloc(size)
-        self.batch_allocation = cuda_call(cudart.cudaMalloc(size))
+
+        self.batch_allocations = {}
+        for name, shape in self.image_batcher.shapes.items():
+            size = int(np.dtype(self.image_batcher.dtype).itemsize * np.prod(shape))
+            self.batch_allocations[name] = cuda_call(cudart.cudaMalloc(size))
 
         self.batch_generator = self.image_batcher.get_batch()
 
@@ -105,20 +106,28 @@ class EngineCalibrator(trt.IInt8EntropyCalibrator2):
         :param names: The names of the inputs, if useful to define the order of inputs.
         :return: A list of int-casted memory pointers.
         """
+        print("names inside get_batch:", names)
         if not self.image_batcher:
             return None
+        
         try:
             print("about to do a call to the batch generator")
             batch = next(self.batch_generator)
             print("finished call to image batcher")
-            log.info("Calibrating image {} / {}".format(self.image_batcher.image_index, self.image_batcher.num_images))
-            # common.memcpy_host_to_device(self.batch_allocation, np.ascontiguousarray(batch))
-            memcpy_host_to_device(self.batch_allocation, np.ascontiguousarray(batch)) 
-            print("returning from get batch:", [int(self.batch_allocation)])
-            return [int(self.batch_allocation)]
+
+            print("batch allocations:", self.batch_allocations)
+
+            mem_ptrs = []
+            for name in names:
+                print(f"processing batch for {name}")
+                log.info(f"{name}: calibrating images {self.image_batcher.image_index} - {self.image_batcher.image_index + self.image_batcher.num_images - 1}")
+                memcpy_host_to_device(self.batch_allocations[name], np.ascontiguousarray(batch[name])) 
+                mem_ptrs.append(int(self.batch_allocations[name]))
+
+            return mem_ptrs
+        
         except StopIteration:
-            print("stop iteration error")
-            log.info("Finished calibration batches")
+            log.info("Finished calibration")
             return None
 
     def read_calibration_cache(self):
@@ -188,13 +197,17 @@ class EngineBuilder:
         outputs = [self.network.get_output(i) for i in range(self.network.num_outputs)]
 
         log.info("Network Description")
+        
         for input in inputs:
             self.batch_size = input.shape[0]
-            log.info("Input '{}' with shape {} and dtype {}".format(input.name, input.shape, input.dtype))
+            log.info(f"Input '{input.name}' with shape {input.shape} and dtype {input.dtype}")
+        
         for output in outputs:
-            log.info("Output '{}' with shape {} and dtype {}".format(output.name, output.shape, output.dtype))
+            log.info(f"Output '{output.name}' with shape {output.shape} and dtype {output.dtype}")
+        
         assert self.batch_size > 0
         self.builder.max_batch_size = self.batch_size
+        log.info(f"Builder max batchsize: {self.batch_size}")
 
     def create_engine(
         self,
@@ -216,12 +229,15 @@ class EngineBuilder:
         :param calib_batch_size: The batch size to use for the calibration process.
         :param calib_preprocessor: The ImageBatcher preprocessor algorithm to use.
         """
+        encoder = load_image_encoder_engine("engines/vit/encoder_k5_fp32.engine")
         engine_path = os.path.realpath(engine_path)
         engine_dir = os.path.dirname(engine_path)
         os.makedirs(engine_dir, exist_ok=True)
         log.info("Building {} Engine in {}".format(precision, engine_path))
 
         inputs = [self.network.get_input(i) for i in range(self.network.num_inputs)]
+        print("num inputs into the model:", self.network.num_inputs)
+        print("inputs:", inputs)
 
         if precision == "fp16":
             if not self.builder.platform_has_fast_fp16:
@@ -238,6 +254,8 @@ class EngineBuilder:
                 self.config.int8_calibrator = EngineCalibrator(calib_cache)
                 if not os.path.exists(calib_cache):
                     calib_shape = [calib_batch_size] + list(inputs[0].shape[1:])
+                    print('[calib batch size]', [calib_batch_size])
+                    print("inputs[0].shape[1:]", list(inputs[0].shape[1:]))
                     calib_dtype = trt.nptype(inputs[0].dtype)
                     print("calib shape:", calib_shape)
                     print("calib dtype:", calib_dtype)
@@ -248,6 +266,7 @@ class EngineBuilder:
                             calib_input,
                             calib_shape,
                             calib_dtype,
+                            encoder,
                             max_num_images=calib_num_images,
                             exact_batches=True,
                             # preprocessor=calib_preprocessor,
