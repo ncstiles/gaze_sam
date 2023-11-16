@@ -284,24 +284,23 @@ def show_one_ann(anns, line_points, line_start, line_end, bbs, center_pix, raw_i
     best_mask_in_box = percentage_intersection_area[r][c] != 0 # max intersection between mask and box is 0
 
     if not best_mask_in_box: # default to the largest mask on the gaze line if non intersect with a box
+        print("no box intersection")
+        print(mask_area)
         r = np.argmax(mask_area)
    
     mask = anns[r]['segmentation']
     e = time.time()
 
-    point = None
-    for point in line_points:
-        x1, y1 = line_points[i]
-        if mask[y1, x1]:
-            print("found intersection")
-            point = (x1, y1)
-            break
     f = time.time()
-
     raw_image[mask] = [255, 182, 193]
     h = time.time()
 
-    cv2.drawMarker(raw_image, point, color=(255, 255, 255), markerType=cv2.MARKER_STAR, markerSize=12, thickness=2) # star the segment point
+    for i, point in enumerate(line_points):
+        x1, y1 = point
+        if mask[y1, x1]:
+            cv2.drawMarker(raw_image, point, color=(255, 0, 0), markerType=cv2.MARKER_STAR, markerSize=12, thickness=2) # star the segment point
+            break    
+
     i = time.time()
     cv2.line(raw_image, line_start, line_end, (0, 255, 0), 1)
 
@@ -314,7 +313,7 @@ def show_one_ann(anns, line_points, line_start, line_end, bbs, center_pix, raw_i
     print("find intersection point:", f - e)
     print("set mask:", h - f)
     print("draw marker:", i - h)
-    print("draw line mask:", j - i)
+    print("draw line mask + best bounding box:", j - i)
 
     return raw_image
 
