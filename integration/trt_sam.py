@@ -765,7 +765,7 @@ class EfficientViTSamAutomaticMaskGenerator():
                  the mask, given in XYWH format.
         """
         increment = round(len(gaze_points)/self.points_per_batch)
-        self.gaze_points = np.array([gaze_points[i*increment] for i in range(self.points_per_batch) if i * increment < len(gaze_points)]) # setting number of points in batch to be 64
+        self.gaze_points = gaze_points
 
         # Generate masks
         a = time.time()

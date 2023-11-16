@@ -411,7 +411,4 @@ def get_pixels_on_line(img, start_point, end_point):
     y_vals.append(y2)
 
     gaze_points = np.column_stack((x_vals, y_vals))
-    mask = np.zeros((h, w), dtype=bool)
-    mask[y_vals, x_vals] = True
-
-    return gaze_points, mask
+    return gaze_points

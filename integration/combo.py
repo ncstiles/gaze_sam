@@ -33,15 +33,17 @@ from load_engine import *
 def get_cli_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="l0")
-    # parser.add_argument("--image_path", type=str, default="../base_imgs/workpls_v2.png")
-    parser.add_argument("--image_path", type=str, default="../base_imgs/gum.png")
+    # parser.add_argument("--image_path", type=str, default="../base_imgs/gum.png")
+    parser.add_argument("--image_path", type=str, default="../base_imgs/pen.png")
+
+    # parser.add_argument("--image_path", type=str, default="../base_imgs/gum.png")
     parser.add_argument("--output_path", type=str, default=f"out/{time.time()}.png")
-    parser.add_argument("--gaze_start", type=str, default=f"[{717},{254}]")
-    parser.add_argument("--gaze_end", type=str, default=f"[{424},{286}]")
+    parser.add_argument("--gaze_start", type=str, default=f"[{617},{288}]")
+    parser.add_argument("--gaze_end", type=str, default=f"[{808},{242}]")
     # parser.add_argument("--image_path", type=str, default="../base_imgs/zz.png")
     # parser.add_argument("--output_path", type=str, default=f"out/{time.time()}.png")
-    # parser.add_argument("--gaze_start", type=str, default=f"[{485},{329}]")
-    # parser.add_argument("--gaze_end", type=str, default=f"[{189},{362}]")
+    # parser.add_argument("--gaze_start", type=str, default=f"[{595},{361}]")
+    # parser.add_argument("--gaze_end", type=str, default=f"[{757},{396}]")
     args, _ = parser.parse_known_args()
     return args    
 
@@ -130,8 +132,17 @@ def main():
     args.gaze_end = yaml.safe_load(args.gaze_end)
 
     # vit initialization
+    # trt_encoder_path = "engines/vit/encoder_k9_int8_v3_entropy_calib_ppl_dataset.engine"
+    # trt_encoder_path = "engines/vit/encoder_k9_int8_128gum.engine"
+    # trt_encoder_path = "engines/vit/encoder_k5_int8_v2.engine"
     trt_encoder_path = "engines/vit/encoder_fp32_k9.engine"
-    trt_decoder_path = "engines/vit/decoder_fp32_k9.engine"
+
+    # trt_decoder_path = "engines/vit/decoder_k9_fp32_fixed_size.engine"
+    # trt_decoder_path = "engines/vit/decoder_fp32_k9.engine"
+
+    trt_decoder_path ='engines/vit/decoder_k9_int8_5kpeople_bs1.engine'
+    # trt_decoder_path = "engines/vit/decoder_k9_int8_1gum.engine"
+    # trt_decoder_path = "engines/vit/decoder_k9_fp16.engine"
     efficientvit_sam = create_sam_model(args.model, True, None).cuda().eval()
     efficientvit_mask_generator = EfficientViTSamAutomaticMaskGenerator(efficientvit_sam, trt_encoder_path=trt_encoder_path, trt_decoder_path=trt_decoder_path)
 
@@ -207,7 +218,12 @@ def main():
         m = time.time()
     
     p = time.time()
-    gaze_points, gaze_mask = get_pixels_on_line(raw_image, args.gaze_start, args.gaze_end)
+    gaze_points = get_pixels_on_line(raw_image, args.gaze_start, args.gaze_end)
+    NUM_POINTS = 32
+    gaze_start, gaze_end = gaze_points[0], gaze_points[-1]
+    indices = np.linspace(0, len(gaze_points) - 1, NUM_POINTS, dtype=int)
+    gaze_points = gaze_points[indices]
+
     q = time.time()
     # run vit model
     c = time.time()
@@ -238,8 +254,8 @@ def main():
     
     # visualize
     v = time.time()
-    # show_anns(masks)
-    raw_image = show_one_ann(masks, gaze_mask, bounding_boxes, args.gaze_start, raw_image)
+    # raw_image = show_anns(raw_image, masks)
+    raw_image = show_one_ann(masks, gaze_points, gaze_start, gaze_end, bounding_boxes, args.gaze_start, raw_image)
     
     w = time.time()
     plt.axis("off")
@@ -247,9 +263,6 @@ def main():
     xx = time.time()
     plt.savefig(f"{args.output_path}", format="png", dpi=300, bbox_inches="tight", pad_inches=0.0)
     x = time.time()
-
-    print("full without load time:", time.time() - a)
-    print(f"saving img to {args.output_path}")
     
     print()
 
@@ -284,7 +297,7 @@ def main():
     print("load total:", z - y)
 
 if __name__ == "__main__":
-        main()
+    main()
 
 # elts = "generate masks: 0.12423539161682129",
 # "detect face (primed): 0.002354860305786133",
@@ -301,3 +314,21 @@ if __name__ == "__main__":
 # "yolo pred: 0.0019392967224121094",
 # "draw and get yolo boxes: 0.008787870407104492",
 # "segment one mask: 0.026651382446289062"]
+
+# up to one mask optimization
+# load img: 0.08280062675476074
+# resize img: 2.0817110538482666
+# generate masks: 0.06017279624938965
+# detect face (primed): 0.0026962757110595703
+# smooth + extract face (primed): 4.4345855712890625e-05
+# detect landmark (primed): 0.0009033679962158203
+# smooth landmark (primed): 0.0005803108215332031
+# detect gaze (primed): 0.0034503936767578125
+# smooth gaze (primed): 1.2636184692382812e-05
+# visualize gaze: 0.0007472038269042969
+# create plots: 5.9604644775390625e-06
+# get gaze mask: 0.0003733634948730469
+# prep yolo img: 0.004436969757080078
+# yolo pred: 0.0030698776245117188
+# draw and get yolo boxes: 0.003017902374267578
+# segment one mask: 0.007338762283325195

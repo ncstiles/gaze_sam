@@ -49,22 +49,18 @@ def show_anns_original(anns) -> None:
         img[m] = color_mask
     ax.imshow(img)
 
-def show_anns(anns) -> None:
+def show_anns(raw_image, anns) -> None:
     if len(anns) == 0:
-        return
+        return raw_image
     print("num annotations:", len(anns))
-    ax = plt.gca()
-    ax.set_autoscale_on(False)
-
-    img = np.ones((anns[0]["segmentation"].shape[0], anns[0]["segmentation"].shape[1], 4))
-    img[:, :, 3] = 0
+    
+    alpha_channel = np.ones((raw_image.shape[0], raw_image.shape[1], 1), dtype=np.uint8) * 255
+    raw_image = np.concatenate((raw_image, alpha_channel), axis=2)
     for ann in anns:
         m = ann["segmentation"]
-        color_mask = np.concatenate([np.random.random(3), [0.35]])
-        # color_mask = np.concatenate([(0, 0, 255), [0.35]])
-
-        img[m] = color_mask
-    ax.imshow(img)
+        raw_image[m] = np.concatenate([np.random.random(3) * 255, [0.35 * 255]])
+    
+    return raw_image
 
 def check_self(mask, eye_loc):
     rev = (eye_loc[1], eye_loc[0])
@@ -191,7 +187,7 @@ def show_one_ann_no_rles(anns, line_mask, bbs, center_pix) -> None:
 
     ax.imshow(img) # this is important to keep the segmentations on the img
 
-def show_one_ann(anns, line_mask, bbs, center_pix, raw_image) -> None:
+def show_one_ann_numpyless(anns, line_mask, bbs, center_pix, raw_image) -> None:
     a = time.time()
     alpha_channel = np.ones((raw_image.shape[0], raw_image.shape[1], 1), dtype=np.uint8) * 255
     raw_image = np.concatenate((raw_image, alpha_channel), axis=2)
@@ -242,6 +238,83 @@ def show_one_ann(anns, line_mask, bbs, center_pix, raw_image) -> None:
 
     
     raw_image[line_mask] = np.concatenate([[0, 255, 0], [255]])
+
+    return raw_image
+
+
+def show_one_ann(anns, line_points, line_start, line_end, bbs, center_pix, raw_image) -> None:
+    print()
+    new_bbs = [] # don't add bounding box segmenting the gazing person
+    for row in bbs:
+        if not(row[0] <= center_pix[0] <= row[1] and row[2] <= center_pix[1] <= row[3]):
+            new_bbs.append(row)
+    
+    bbs = np.array(new_bbs)
+    print()
+    print("~ extracting one mask ~")
+    if len(anns) == 0:
+        print("NO MASK SEGMENTATIONS FOUND")
+        return raw_image
+    
+    print("num anns:", len(anns))
+    print("img.shape:", raw_image.shape)
+
+    c = time.time()
+    intersection_area = np.zeros((len(anns), len(bbs))) # keep track of num shared pixels between each (mask, bounding box) combo
+    mask_area = np.zeros(len(anns)) # keep track of num pixels inside each mask
+
+    for i, ann in enumerate(anns):
+        mask = ann['segmentation']
+        if check_self(mask, center_pix): # never want to segment yourself, so set its val to be lowest
+            intersection_area[i] = [-1] * len(bbs)
+            continue
+        else:
+            mask_area[i] = np.count_nonzero(mask) # don't want to default to yourself again
+        for j, bb in enumerate(bbs):
+            roi = mask[bb[2]:bb[3]+1, bb[0]:bb[1]+1]
+            intersection_area[i][j] = np.count_nonzero(roi)
+
+    # (x2 - x1 + 1) * (y2 - y1 + 1) to get num pixels inside each bounding box
+    bb_area = (bbs[:, 1] - bbs[:, 0] + 1) * (bbs[:, 3] - bbs[:, 2] + 1)
+
+    percentage_intersection_area = intersection_area / bb_area
+    max_ix = np.argmax(percentage_intersection_area)
+    r, c = max_ix // len(bbs), max_ix % len(bbs)
+
+    best_mask_in_box = percentage_intersection_area[r][c] != 0 # max intersection between mask and box is 0
+
+    if not best_mask_in_box: # default to the largest mask on the gaze line if non intersect with a box
+        r = np.argmax(mask_area)
+   
+    mask = anns[r]['segmentation']
+    e = time.time()
+
+    point = None
+    for point in line_points:
+        x1, y1 = line_points[i]
+        if mask[y1, x1]:
+            print("found intersection")
+            point = (x1, y1)
+            break
+    f = time.time()
+
+    raw_image[mask] = [255, 182, 193]
+    h = time.time()
+
+    cv2.drawMarker(raw_image, point, color=(255, 255, 255), markerType=cv2.MARKER_STAR, markerSize=12, thickness=2) # star the segment point
+    i = time.time()
+    cv2.line(raw_image, line_start, line_end, (0, 255, 0), 1)
+
+    if best_mask_in_box:
+        # (x1, y1), (x2, y2)
+        cv2.rectangle(raw_image, (bbs[c][0], bbs[c][2]), (bbs[c][1], bbs[c][3]), (255, 0, 0), 2) # actually intersects a rectangle
+
+    j = time.time()
+    print("get best max:", e - c)
+    print("find intersection point:", f - e)
+    print("set mask:", h - f)
+    print("draw marker:", i - h)
+    print("draw line mask:", j - i)
 
     return raw_image
 
