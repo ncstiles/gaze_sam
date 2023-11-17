@@ -3,3 +3,6 @@
 *.png
 __init__.py
 *.pyc
+*.jpg
+*.cache
+*.pt

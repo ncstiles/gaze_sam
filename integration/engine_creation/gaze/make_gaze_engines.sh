@@ -20,17 +20,13 @@ echo "--- creating face trt engine ---"
 /home/nicole/TensorRT-8.4.3.1/bin/trtexec \
     --onnx=$FACE_ONNX_PATH \
     --saveEngine=$FACE_ENGINE_PATH \
-    --fp16
 
 echo "--- creating landmark trt engine ---"
 /home/nicole/TensorRT-8.4.3.1/bin/trtexec \
     --onnx=$LANDMARK_ONNX_PATH \
     --saveEngine=$LANDMARK_ENGINE_PATH \
-    --fp16
 
 echo "--- creating gaze trt engine ---"
 /home/nicole/TensorRT-8.4.3.1/bin/trtexec \
     --onnx=$GAZE_ONNX_PATH \
     --saveEngine=$GAZE_ENGINE_PATH \
-    --fp16
-

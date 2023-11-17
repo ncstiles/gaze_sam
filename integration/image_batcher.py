@@ -149,7 +149,7 @@ class ImageBatcher:
 
         raw_image = np.asarray(Image.open(image_path).convert("RGB"))
         if raw_image.shape[0] * raw_image.shape[1] > 1280 * 720:
-            raw_image = cv2.resize(raw_image, 1280, 720)
+            raw_image = cv2.resize(raw_image, (1280, 720))
         image = preprocess(raw_image)
 
         return image

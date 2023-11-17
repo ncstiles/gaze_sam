@@ -120,7 +120,7 @@ class EngineCalibrator(trt.IInt8EntropyCalibrator2):
             mem_ptrs = []
             for name in names:
                 print(f"processing batch for {name}")
-                log.info(f"{name}: calibrating images {self.image_batcher.image_index} - {self.image_batcher.image_index + self.image_batcher.num_images - 1}")
+                log.info(f"{name}: calibrating images {self.image_batcher.image_index} - {self.image_batcher.image_index + self.image_batcher.batch_size - 1}")
                 memcpy_host_to_device(self.batch_allocations[name], np.ascontiguousarray(batch[name])) 
                 mem_ptrs.append(int(self.batch_allocations[name]))
 
