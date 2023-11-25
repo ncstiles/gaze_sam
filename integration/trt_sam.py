@@ -257,7 +257,7 @@ class EfficientViTSam(nn.Module):
             mode="bilinear",
             align_corners=False,
         )
-        masks = masks[..., : input_size[0], : input_size[1]]
+        masks = masks[..., :input_size[0], :input_size[1]]
         masks = F.interpolate(masks, original_size, mode="bilinear", align_corners=False)
         return masks
 
@@ -333,7 +333,6 @@ class EfficientViTSamPredictor:
         print("image shape after preprocess:", preprocessed_image.shape)
         
         self.features = self.encoder(preprocessed_image)
-        print("cropped img embedding values:", self.features[0, 0, :, :])
         print("features after passing through encoder:", self.features.shape)
 
         self.is_image_set = True
@@ -538,7 +537,14 @@ class EfficientViTSamPredictor:
         mask_input = torch.tensor(mask_input).cuda()
         has_mask_input = torch.tensor(has_mask_input).cuda()
         iou_predictions, low_res_masks = self.decoder(self.features, point_coords, point_labels, mask_input, has_mask_input)
-
+        # stacked_output =  self.decoder(self.features, point_coords, point_labels, mask_input, has_mask_input)
+        
+        # low_res_masks = stacked_output[:, :, :-1]
+        # low_res_masks = low_res_masks.reshape((32, 4, 256, 256))
+        
+        # iou_predictions = stacked_output[:, :, -1:]
+        # iou_predictions = iou_predictions.squeeze(2)
+        
         # Upscale the masks to the original image resolution
         masks = self.model.postprocess_masks(low_res_masks, self.input_size, self.original_size)
 
@@ -623,8 +629,8 @@ class EfficientViTSamPredictor:
             multimask_output=multimask_output,
         )
 
-        print("low res mask shape:", low_res_masks.shape)
-        print("iou predictions shape:", iou_predictions.shape)
+        # print("low res mask shape:", low_res_masks.shape)
+        # print("iou predictions shape:", iou_predictions.shape)
 
         print("before original postprocess masks")
 
@@ -969,10 +975,13 @@ class EfficientViTSamAutomaticMaskGenerator():
 
         g = time.time()
 
-        # Filter boxes that touch crop boundaries
-        keep_mask = ~is_box_near_crop_edge(data["boxes"], crop_box, [0, 0, orig_w, orig_h])
-        if not torch.all(keep_mask):
-            data.filter(keep_mask)
+        # Filter boxes that touch crop boundaries 
+        # function spec says never crop image edge. 
+        # b/c our crop = image, this will always never filter anything out
+        
+        # keep_mask = ~is_box_near_crop_edge(data["boxes"], crop_box, [0, 0, orig_w, orig_h])
+        # if not torch.all(keep_mask):
+        #     data.filter(keep_mask)
 
         h = time.time()
 

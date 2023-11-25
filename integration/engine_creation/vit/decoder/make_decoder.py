@@ -142,6 +142,7 @@ def run_export(
 
     # output_names = ["masks", "iou_predictions", "low_res_masks"]
     output_names = ["iou_predictions", "low_res_masks"]
+    # output_names = ["stacked_output"]
 
 
     pathlib.Path(output).parent.mkdir(parents=True, exist_ok=True)

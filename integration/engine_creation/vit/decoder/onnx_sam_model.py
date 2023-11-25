@@ -164,3 +164,12 @@ class EfficientSamOnnxModel(nn.Module):
         # return upscaled_masks, scores, masks        
         return scores, masks
 
+        # masks_modified = masks.reshape((32, 4, -1))
+        # scores_modified = scores.unsqueeze(2)
+
+        # # Stack along a new axis (dim=2 in this case)
+        # # stacked_tensor = torch.cat([scores_modified, masks_modified], dim=2)
+        # stacked_tensor = torch.cat([masks_modified, scores_modified], dim=2)
+
+        # return stacked_tensor
+
