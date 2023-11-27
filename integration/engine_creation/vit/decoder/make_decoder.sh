@@ -1,22 +1,18 @@
-ONNXPATH="../../../engines/vit/onnx/decoder_k9_fp32_fixed_size.onnx"
-ENGINEPATH="../../../engines/vit/decoder_k9_fp32_fixed_size.engine"
-echo "export efficientvit sam decoder >>>"
+ONNXPATH="../../../engines/vit/onnx/decoder_k9_fp32_trt8.6_unstacked_l0_opset11.onnx"
+# ENGINEPATH="../../../engines/vit/decoder_k9_fp32_trt8.6_unstacked_l0.engine"
+# echo "export efficientvit sam decoder >>>"
 
 python -m make_decoder \
-    --checkpoint l1.pt \
+    --checkpoint l0.pt \
     --output $ONNXPATH \
-    --model-type l1 \
+    --model-type l0 \
     --opset 11
 echo "--- base onnx file creation complete ---"
 
-polygraphy surgeon sanitize --fold-constants $ONNXPATH -o $ONNXPATH
-echo "--- constant folding complete ---"
+# polygraphy surgeon sanitize --fold-constants $ONNXPATH -o $ONNXPATH
+# echo "--- constant folding complete ---"
 
-echo "--- creating trt engine ---"
-/home/nicole/TensorRT-8.4.3.1/bin/trtexec \
-    --onnx=$ONNXPATH \
-    --saveEngine=$ENGINEPATH \
-    # --minShapes=point_coords:32x1x2,point_labels:32x1 \
-    # --optShapes=point_coords:32x1x2,point_labels:32x1 \
-    # --maxShapes=point_coords:32x1x2,point_labels:32x1 \
-    # --fp16
+# echo "--- creating trt engine ---"
+# trtexec \
+#     --onnx=$ONNXPATH \
+#     --saveEngine=$ENGINEPATH

@@ -1,5 +1,5 @@
 ONNXPATH="../../../engines/vit/onnx/encoder_k9_fp32.onnx"
-ENGINEPATH="../../../engines/vit/encoder_k9_fp32.engine"
+ENGINEPATH="../../../engines/vit/encoder_g0_fp32_trt8.6.engine"
 
 echo "export efficientvit sam encoder (no built-in preprocessing)>>>"
 
@@ -18,7 +18,7 @@ python3 remove_resize_cubic.py --onnx_path $ONNXPATH
 echo "--- resize cubic interpolations casted to linear complete ---"
 
 echo "--- creating trt engine ---"
-/home/nicole/TensorRT-8.4.3.1/bin/trtexec \
+trtexec \
     --onnx=$ONNXPATH \
     --saveEngine=$ENGINEPATH \
     # --fp16

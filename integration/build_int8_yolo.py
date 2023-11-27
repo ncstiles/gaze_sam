@@ -24,9 +24,6 @@ import numpy as np
 import tensorrt as trt
 from cuda import cuda, cudart
 
-tensorrt_samples_path = "/home/nicole/TensorRT-8.4.3.1/samples"
-sys.path.insert(1, tensorrt_samples_path)
-
 from image_batcher_yolo import ImageBatcher
 
 logging.basicConfig(level=logging.INFO)
@@ -255,7 +252,7 @@ def main(args):
         args.calib_input,
         args.calib_cache,
         args.calib_num_images,
-        args.calib_batch_size,
+        args.calib_batch_size, 
     )
 
 

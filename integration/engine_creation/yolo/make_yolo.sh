@@ -1,5 +1,5 @@
 ONNXPATH="../../engines/yolo/onnx/yolo_k9.onnx"
-ENGINEPATH="../../engines/yolo/yolo_fp32_k9.engine"
+ENGINEPATH="../../engines/yolo/yolo_fp32_g0_trt8.6.engine"
 echo "export yolo nas engine >>>"
 
 python -m make_yolo \
@@ -10,7 +10,7 @@ polygraphy surgeon sanitize --fold-constants $ONNXPATH -o $ONNXPATH
 echo "--- constant folding complete ---"
 
 echo "--- creating trt engine ---"
-/home/nicole/TensorRT-8.4.3.1/bin/trtexec \
+trtexec \
     --onnx=$ONNXPATH \
     --saveEngine=$ENGINEPATH \
     # --fp16

@@ -120,7 +120,7 @@ class EngineCalibrator(trt.IInt8EntropyCalibrator2):
             mem_ptrs = []
             for name in names:
                 print(f"processing batch for {name}")
-                log.info(f"{name}: calibrating images {self.image_batcher.image_index} - {self.image_batcher.image_index + self.image_batcher.batch_size - 1}")
+                log.info(f"{name}: calibrating image {self.image_batcher.image_index}")
                 memcpy_host_to_device(self.batch_allocations[name], np.ascontiguousarray(batch[name])) 
                 mem_ptrs.append(int(self.batch_allocations[name]))
 
@@ -217,6 +217,7 @@ class EngineBuilder:
         calib_cache=None,
         calib_num_images=25000,
         calib_batch_size=8,
+        encoder=None,
         calib_preprocessor=None,
     ):
         """
@@ -229,7 +230,8 @@ class EngineBuilder:
         :param calib_batch_size: The batch size to use for the calibration process.
         :param calib_preprocessor: The ImageBatcher preprocessor algorithm to use.
         """
-        encoder = load_image_encoder_engine("engines/vit/encoder_k5_fp32.engine")
+        print("encoder path:", encoder)
+        encoder = load_image_encoder_engine(encoder)
         engine_path = os.path.realpath(engine_path)
         engine_dir = os.path.dirname(engine_path)
         os.makedirs(engine_dir, exist_ok=True)
@@ -288,6 +290,7 @@ def main(args):
         args.calib_cache,
         args.calib_num_images,
         args.calib_batch_size,
+        args.encoder
         # args.calib_preprocessor,
     )
 
@@ -296,6 +299,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--onnx", help="The input ONNX model file to load")
     parser.add_argument("-e", "--engine", help="The output path for the TRT engine")
+    parser.add_argument("--encoder", help="The encoder engine to generate image embeddings")
     parser.add_argument(
         "-p",
         "--precision",
