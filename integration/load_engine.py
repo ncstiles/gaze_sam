@@ -33,6 +33,9 @@ def load_mask_decoder_engine(path: str):
             "mask_input",
             "has_mask_input"
         ],
+        # output_names=[
+        #     "stacked_output"
+        # ]
         output_names=[
             "iou_predictions",
             "low_res_masks"

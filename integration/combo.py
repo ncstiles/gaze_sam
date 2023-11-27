@@ -17,7 +17,7 @@ from typing import Any, Union, Tuple, Optional, List, Dict
 
 from trt_sam import EfficientViTSamAutomaticMaskGenerator, SamPad, SamResize
 import torchvision.transforms as transforms
-
+from segment_anything.utils.amg import MaskData
     
 from efficient_vit.efficientvit.sam_model_zoo import create_sam_model
 
@@ -33,17 +33,10 @@ from load_engine import *
 def get_cli_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="l0")
-    # parser.add_argument("--image_path", type=str, default="../base_imgs/gum.png")
-    parser.add_argument("--image_path", type=str, default="../base_imgs/pen.png")
-
-    # parser.add_argument("--image_path", type=str, default="../base_imgs/gum.png")
+    parser.add_argument("--image_path", type=str, default="../base_imgs/gum.png")
     parser.add_argument("--output_path", type=str, default=f"out/{time.time()}.png")
-    parser.add_argument("--gaze_start", type=str, default=f"[{617},{288}]")
-    parser.add_argument("--gaze_end", type=str, default=f"[{808},{242}]")
-    # parser.add_argument("--image_path", type=str, default="../base_imgs/zz.png")
-    # parser.add_argument("--output_path", type=str, default=f"out/{time.time()}.png")
-    # parser.add_argument("--gaze_start", type=str, default=f"[{595},{361}]")
-    # parser.add_argument("--gaze_end", type=str, default=f"[{757},{396}]")
+    parser.add_argument("--gaze_start", type=str, default=f"[{717},{254}]")
+    parser.add_argument("--gaze_end", type=str, default=f"[{424},{286}]")
     args, _ = parser.parse_known_args()
     return args    
 
@@ -69,16 +62,10 @@ def prime_encoder_decoder(trt_encoder_path, trt_decoder_path, image):
     image_path = "../base_imgs/cup.png"
     image = np.array(Image.open(image_path).convert("RGB"))
 
-    aa = time.time()
     preprocessed_image = preprocess(image)
-    bb = time.time()
         
-    print("encoder preprocess time:", bb - aa)
-
-    for i in range(2):
-        a = time.time()
+    for _ in range(2):
         features = encoder(preprocessed_image)
-        b = time.time()
 
         mask_input = torch.tensor(np.zeros((1, 1, 256, 256), dtype=np.float32)).cuda()
         has_mask_input = torch.tensor(np.zeros(1, dtype=np.float32)).cuda()
@@ -86,12 +73,7 @@ def prime_encoder_decoder(trt_encoder_path, trt_decoder_path, image):
         point_coords = torch.randint(low=0, high=1024, size=(32, 1, 2), dtype=torch.float).cuda()
         point_labels = torch.randint(low=0, high=4, size=(32, 1), dtype=torch.float).cuda()
 
-        c = time.time()
         decoder(features, point_coords, point_labels, mask_input, has_mask_input)
-        d = time.time()
-
-        print("prep encoder time:", b - a)
-        print("prep decoder time:", d - c)
 
 
 def prime_gaze_engines(trt_face_detection, trt_landmark_detection, trt_gaze_estimation, gaze_smoother, landmark_smoother, bbox_smoother, timer):
@@ -111,19 +93,20 @@ def prime_gaze_engines(trt_face_detection, trt_landmark_detection, trt_gaze_esti
         landmark, _, _ = detect_landmark_trt(frame, face, trt_landmark_detection, timer)
         landmark = landmark_smoother(landmark, t=CURRENT_TIMESTAMP)
         
-        gaze_pitchyaw, rvec, tvec = estimate_gaze_trt(frame, landmark, trt_gaze_estimation, timer)        
+        gaze_pitchyaw, _, _ = estimate_gaze_trt(frame, landmark, trt_gaze_estimation, timer)        
         gaze_pitchyaw = gaze_smoother(gaze_pitchyaw, t=CURRENT_TIMESTAMP)
     
 
 def prime_yolo(trt_yolo):
-    image_path = "../base_imgs/psycho_out.png"
-    raw_image = np.array(Image.open(image_path).convert("RGB"))
-    image_yolo = cv2.resize(raw_image, (640, 640)) # must be (640, 640) to be compatible with engine
-    expanded_img = np.transpose(np.expand_dims(image_yolo, axis=0), (0, 3, 1, 2))
-    yolo_img = torch.Tensor(expanded_img).cuda()
-    trt_yolo(yolo_img)
+    for i in range(3):
+        image_path = "../base_imgs/psycho_out.png"
+        raw_image = np.array(Image.open(image_path).convert("RGB"))
+        image_yolo = cv2.resize(raw_image, (640, 640)) # must be (640, 640) to be compatible with engine
+        expanded_img = np.transpose(np.expand_dims(image_yolo, axis=0), (0, 3, 1, 2))
+        yolo_img = torch.Tensor(expanded_img).cuda()
+        trt_yolo(yolo_img)
 
-def main():
+def main(image_path, gaze_start, gaze_end):
     y = time.time()
     args = get_cli_args()
 
@@ -131,18 +114,16 @@ def main():
     args.gaze_start = yaml.safe_load(args.gaze_start)
     args.gaze_end = yaml.safe_load(args.gaze_end)
 
+    # remove, this is just for testing
+    args.image_path = image_path
+    args.gaze_start = gaze_start
+    args.gaze_end = gaze_end
+
     # vit initialization
-    # trt_encoder_path = "engines/vit/encoder_k9_int8_v3_entropy_calib_ppl_dataset.engine"
-    # trt_encoder_path = "engines/vit/encoder_k9_int8_128gum.engine"
-    # trt_encoder_path = "engines/vit/encoder_k5_int8_v2.engine"
-    trt_encoder_path = "engines/vit/encoder_fp32_k9.engine"
+    # trt_encoder_path = "engines/vit/encoder_k9_fp32_trt8.6.engine"
+    trt_encoder_path = "engines/vit/encoder_fp16_trt8.6.engine"
 
-    # trt_decoder_path = "engines/vit/decoder_k9_fp32_fixed_size.engine"
-    # trt_decoder_path = "engines/vit/decoder_fp32_k9.engine"
-
-    trt_decoder_path ='engines/vit/decoder_k9_int8_5kpeople_bs1.engine'
-    # trt_decoder_path = "engines/vit/decoder_k9_int8_1gum.engine"
-    # trt_decoder_path = "engines/vit/decoder_k9_fp16.engine"
+    trt_decoder_path = "engines/vit/decoder_fp16_k9_unstacked_l0_opset11.engine"
     efficientvit_sam = create_sam_model(args.model, True, None).cuda().eval()
     efficientvit_mask_generator = EfficientViTSamAutomaticMaskGenerator(efficientvit_sam, trt_encoder_path=trt_encoder_path, trt_decoder_path=trt_decoder_path)
 
@@ -151,17 +132,18 @@ def main():
     landmark_smoother = LandmarkSmoother(OneEuroFilter, pt_num=98, min_cutoff=0.1, beta=1.0)
     bbox_smoother = LandmarkSmoother(OneEuroFilter, pt_num=2, min_cutoff=0.0, beta=1.0)
     
-    trt_face_detection = load_face_detection_engine("engines/gaze/face_detection_fp32_k9.engine")
-    trt_landmark_detection = load_landmark_detection_engine("engines/gaze/landmark_detection_fp32_k9.engine")
-    trt_gaze_estimation = load_gaze_estimation_engine("engines/gaze/gaze_estimation_fp32_k9.engine")
 
+    trt_face_detection = load_face_detection_engine("engines/gaze/face_detection_fp32_k9_trt8.6.engine") 
+    trt_landmark_detection = load_landmark_detection_engine("engines/gaze/landmark_detection_fp32_k9_trt8.6.engine")
+    trt_gaze_estimation = load_gaze_estimation_engine("engines/gaze/gaze_estimation_fp32_k9_trt8.6.engine")
 
     timer = Timer()
     timer.start_record("whole_pipeline")
     CURRENT_TIMESTAMP = timer.get_current_timestamp()
 
     # yolo initialization
-    trt_yolo = load_yolo_engine("engines/yolo/yolo_fp32_k9.engine")
+    # trt_yolo = load_yolo_engine("engines/yolo/yolo_fp32_k9_trt8.6.engine")
+    trt_yolo = load_yolo_engine("engines/yolo/yolo_k9_int8_trt8.6.engine") 
 
     z = time.time()
 
@@ -197,6 +179,8 @@ def main():
     e = time.time()
     faces = detect_face_trt(frame, trt_face_detection, timer)
     f = time.time()
+    # sometimes no face, want these vars to still exist
+    g, h, i, j, k, l, m = 0, 0, 0, 0, 0, 0, 0
     if faces is not None:
         g = time.time()
         face = faces[0]
@@ -234,19 +218,18 @@ def main():
     qq = time.time()
     image_yolo = cv2.resize(raw_image, (640, 640)) # must be (640, 640) to be compatible with engine
     expanded_img = np.transpose(np.expand_dims(image_yolo, axis=0), (0, 3, 1, 2))
-    r = time.time()
     yolo_img = torch.Tensor(expanded_img).cuda()
     ss = time.time()
     predictions = trt_yolo(yolo_img)
     s = time.time()
     bounding_boxes = visualize_bounding_boxes(raw_image, predictions, raw_image.shape[:2])
     t = time.time()
-    u = time.time()
 
     timer.start_record("visualize")
     n = time.time()
     # show_frame = visualize_simple(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
-    show_frame = visualize(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
+    if faces is not None:
+        show_frame = visualize(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
     o = time.time()
     timer.end_record("visualize")
     timer.end_record("whole_pipeline")
@@ -269,12 +252,11 @@ def main():
     print("encoder/decoder priming run:", hhh - ggg)
     print("all gaze engines priming run:", fff - eee)
     print("yolo priming run:", zzz - yyy)
+    print("load img:", b - a)
+    print("resize img:", bb - b)
 
     print()
 
-    print("load img:", b - a)
-    print("resize img:", bb - b)
-    print("generate masks:", d - c)
     print("detect face (primed):", f - e)
     print("smooth + extract face (primed):", h - g)
     print("detect landmark (primed):", j - i)
@@ -282,11 +264,22 @@ def main():
     print("detect gaze (primed):", l - k)
     print("smooth gaze (primed):", m - l)
     print("visualize gaze:", o - n)
-    print("create plots:", v - o)
     print("get gaze mask:", q - p)
+    print("create plots:", v - o)
+
+    print()
+
     print("prep yolo img:", ss - qq)
     print("yolo pred:", s - ss)
     print("draw and get yolo boxes:", t - s)
+    print("total yolo:", t - qq)
+
+
+    print()
+
+    print("generate masks:", d - c)
+    print("generate gaze:", q - e)
+    print("generate yolo:", t - qq)
     print("segment one mask:", w - v)
 
     print()
@@ -296,8 +289,32 @@ def main():
     print("non-load total:", w - e)
     print("load total:", z - y)
 
+    return w-e, t - qq, s - ss
+
 if __name__ == "__main__":
-    main()
+    files = ["../base_imgs/gum.png", "../base_imgs/help.png", "../base_imgs/pen.png", "../base_imgs/psycho.png", "../base_imgs/workpls_v2.png", "../base_imgs/zz.png"]
+    eyes = [(717, 254), (575, 253), (617, 288), (595, 361), (746, 435), (485, 329)]
+    tails = [(424, 286), (568, 0), (808, 242), (757, 396), (930, 434), (189, 362)]
+
+    avg_total_time = 0
+    avg_yolo_time = 0
+    avg_yolo_pred_time = 0
+    i = 0
+    for file, eye, tail in zip(files, eyes, tails):
+        print()
+        print(f"~~~ ITER {i+1} with file {file} ~~~")
+        total_time, yolo_time, yolo_pred_time =  main(file, eye, tail)
+        avg_total_time += total_time
+        avg_yolo_time += yolo_time
+        avg_yolo_pred_time += yolo_pred_time
+        i += 1
+        print()
+
+    print()
+    print("yolo engine time:", avg_yolo_pred_time/len(files))
+    print("total yolo time:", avg_yolo_time/len(files))
+    print()
+    print("average total time:", avg_total_time / len(files))
 
 # elts = "generate masks: 0.12423539161682129",
 # "detect face (primed): 0.002354860305786133",

@@ -112,17 +112,6 @@ class SamResize:
         """
         target_size = self.get_preprocess_shape(image.shape[0], image.shape[1], self.size)
         return np.array(resize(to_pil_image(image), target_size))
-    
-    def new_call(self, image: np.ndarray) -> np.ndarray:
-        h, w, _ = image.shape
-        long_side = max(h, w)
-        if long_side != self.size:
-            target_size = self.get_preprocess_shape(image.shape[0], image.shape[1], self.size)
-            x = resize(image.permute(2, 0, 1), target_size)
-            return x
-        else:
-            return image
-
 
     @staticmethod
     def get_preprocess_shape(oldh: int, oldw: int, long_side_length: int) -> Tuple[int, int]:
@@ -312,99 +301,56 @@ class EfficientViTSamPredictor:
         )
         
         return transform(image).unsqueeze(dim=0).cuda()
-    
+
+        # resizer= SamResize(512)
+        # tensorer = transforms.ToTensor()
+        # mean = np.array([123.675 / 255, 116.28 / 255, 103.53 / 255])
+        # std = np.array([58.395 / 255, 57.12 / 255, 57.375 / 255])
+                
+        # padder = SamPad(512)
+
+        # a = time.time()
+        # image = resizer(image)
+        # b = time.time()
+        # image = tensorer(image)
+        # c = time.time()
+        # image = (image - mean[:, None, None]) / std[:, None, None]
+        # d = time.time()
+        # image = padder(image)
+        # e = time.time()
+        # image = image.unsqueeze(dim=0).cuda()
+        # f = time.time()
+
+        # print(b-a)
+        # print(c-b)
+        # print(d-c)
+        # print(e-d)
+        # print(f-e)
+
+            
     @torch.inference_mode()
     def set_image_trt(self, image: np.ndarray, image_format: str = "RGB") -> None:
-        assert image_format in [
-            "RGB",
-            "BGR",
-        ], f"image_format must be in ['RGB', 'BGR'], is {image_format}."
-        if image_format != self.model.image_format:
-            image = image[..., ::-1]
-
-        self.reset_image()
-
+        a = time.time()
         self.original_size = image.shape[:2]
         self.input_size = ResizeLongestSide.get_preprocess_shape(
             *self.original_size, long_side_length=self.model.image_size[0]
         )
+        b = time.time()
 
         preprocessed_image = self.preprocess(image)
-        print("image shape after preprocess:", preprocessed_image.shape)
-        
+        c = time.time()
         self.features = self.encoder(preprocessed_image)
+        d = time.time()
+
+        print("image shape after preprocess:", preprocessed_image.shape)
         print("features after passing through encoder:", self.features.shape)
 
         self.is_image_set = True
+
+        print(f"\t\t\tencoder resize time:", b-a)
+        print(f"\t\t\tencoder preprocess time:", c-b)
+        print(f"\t\t\tMASK ENCODER TIME: {d-c}")
     
-    @torch.inference_mode()
-    def set_image_onnx(self, image: np.ndarray, image_format: str = "RGB") -> None:
-        assert image_format in [
-            "RGB",
-            "BGR",
-        ], f"image_format must be in ['RGB', 'BGR'], is {image_format}."
-        if image_format != self.model.image_format:
-            image = image[..., ::-1]
-
-        self.reset_image()
-
-        self.original_size = image.shape[:2]
-        self.input_size = ResizeLongestSide.get_preprocess_shape(
-            *self.original_size, long_side_length=self.model.image_size[0]
-        )
-        print("image shape before transform by efficientViTSam model:", image.shape)
-
-        onnx_path = "../assets/checkpoints/sam/encoder_no_preprocess.onnx"
-        opt = ort.SessionOptions()
-        session = ort.InferenceSession(onnx_path, opt, providers=['CUDAExecutionProvider'])
-        
-        input_name = session.get_inputs()[0].name
-        print("device:", get_device(self.model))
-
-        transform = transforms.Compose(
-            [
-                SamResize(512),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[123.675 / 255, 116.28 / 255, 103.53 / 255],
-                    std=[58.395 / 255, 57.12 / 255, 57.375 / 255],
-                ),
-                SamPad(512),
-            ]
-        )
-        torch_data = transform(image).unsqueeze(dim=0).detach().cpu().numpy()
-        print("image shape after transform by efficientViTSam model:", torch_data.shape)
-        
-        self.features = session.run(None, {input_name: torch_data})[0]
-        self.features = torch.tensor(self.features).cuda()
-
-        print("self.features snippet:", self.features[0, 0, :, :])
-        print("features after passing through encoder:", self.features.shape)
-        self.is_image_set = True
-
-    @torch.inference_mode()
-    def set_image_original(self, image: np.ndarray, image_format: str = "RGB") -> None:
-        assert image_format in [
-            "RGB",
-            "BGR",
-        ], f"image_format must be in ['RGB', 'BGR'], is {image_format}."
-        if image_format != self.model.image_format:
-            image = image[..., ::-1]
-
-        self.reset_image()
-
-        self.original_size = image.shape[:2]
-        self.input_size = ResizeLongestSide.get_preprocess_shape(
-            *self.original_size, long_side_length=self.model.image_size[0]
-        )
-        print("image shape before transform by efficientViTSam model:", image.shape)
-        torch_data = self.model.transform(image).unsqueeze(dim=0).to(get_device(self.model))
-        print("image shape after transform by efficientViTSam model:", torch_data.shape)
-        self.features = self.model.image_encoder(torch_data)
-        print("self.features snippet:", self.features[0, 0, :, :])
-        print("features after passing through encoder:", self.features.shape)
-        self.is_image_set = True
-
     def predict(
         self,
         point_coords: np.ndarray or None = None,
@@ -536,14 +482,8 @@ class EfficientViTSamPredictor:
 
         mask_input = torch.tensor(mask_input).cuda()
         has_mask_input = torch.tensor(has_mask_input).cuda()
+
         iou_predictions, low_res_masks = self.decoder(self.features, point_coords, point_labels, mask_input, has_mask_input)
-        # stacked_output =  self.decoder(self.features, point_coords, point_labels, mask_input, has_mask_input)
-        
-        # low_res_masks = stacked_output[:, :, :-1]
-        # low_res_masks = low_res_masks.reshape((32, 4, 256, 256))
-        
-        # iou_predictions = stacked_output[:, :, -1:]
-        # iou_predictions = iou_predictions.squeeze(2)
         
         # Upscale the masks to the original image resolution
         masks = self.model.postprocess_masks(low_res_masks, self.input_size, self.original_size)
@@ -551,97 +491,6 @@ class EfficientViTSamPredictor:
         if not return_logits:
             masks = masks > self.model.mask_threshold
         return iou_predictions, masks
-
-
-    @torch.inference_mode()
-    def predict_torch_original(
-        self,
-        point_coords: torch.Tensor or None = None,
-        point_labels: torch.Tensor or None = None,
-        boxes: torch.Tensor or None = None,
-        mask_input: torch.Tensor or None = None,
-        multimask_output: bool = True,
-        return_logits: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Predict masks for the given input prompts, using the currently set image.
-        Input prompts are batched torch tensors and are expected to already be
-        transformed to the input frame using ResizeLongestSide.
-
-        Arguments:
-          point_coords (torch.Tensor or None): A BxNx2 array of point prompts to the
-            model. Each point is in (X,Y) in pixels.
-          point_labels (torch.Tensor or None): A BxN array of labels for the
-            point prompts. 1 indicates a foreground point and 0 indicates a
-            background point.
-          box (np.ndarray or None): A Bx4 array given a box prompt to the
-            model, in XYXY format.
-          mask_input (np.ndarray): A low resolution mask input to the model, typically
-            coming from a previous prediction iteration. Has form Bx1xHxW, where
-            for SAM, H=W=256. Masks returned by a previous iteration of the
-            predict method do not need further transformation.
-          multimask_output (bool): If true, the model will return three masks.
-            For ambiguous input prompts (such as a single click), this will often
-            produce better masks than a single prediction. If only a single
-            mask is needed, the model's predicted quality score can be used
-            to select the best mask. For non-ambiguous prompts, such as multiple
-            input prompts, multimask_output=False can give better results.
-          return_logits (bool): If true, returns un-thresholded masks logits
-            instead of a binary mask.
-
-        Returns:
-          (torch.Tensor): The output masks in BxCxHxW format, where C is the
-            number of masks, and (H, W) is the original image size.
-          (torch.Tensor): An array of shape BxC containing the model's
-            predictions for the quality of each mask.
-          (torch.Tensor): An array of shape BxCxHxW, where C is the number
-            of masks and H=W=256. These low res logits can be passed to
-            a subsequent iteration as mask input.
-        """
-        if not self.is_image_set:
-            raise RuntimeError("An image must be set with .set_image(...) before mask prediction.")
-
-        if point_coords is not None:
-            points = (point_coords, point_labels)
-        else:
-            points = None
-
-        # Embed prompts
-        print("embedding under original")
-        print("points shape:", points[0].shape, points[1].shape)
-        print("boxes shape:", boxes.shape if boxes else None)
-        print("masks shape:", mask_input.shape if boxes else None)
-        sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
-            points=points,
-            boxes=boxes,
-            masks=mask_input,
-        )
-
-        print("sparse_embeddings shape:", sparse_embeddings.shape)
-        print("dense embeddings shape:", dense_embeddings.shape)
-
-        # Predict masks
-        low_res_masks, iou_predictions = self.model.mask_decoder(
-            image_embeddings=self.features,
-            image_pe=self.model.prompt_encoder.get_dense_pe(),
-            sparse_prompt_embeddings=sparse_embeddings,
-            dense_prompt_embeddings=dense_embeddings,
-            multimask_output=multimask_output,
-        )
-
-        # print("low res mask shape:", low_res_masks.shape)
-        # print("iou predictions shape:", iou_predictions.shape)
-
-        print("before original postprocess masks")
-
-        # Upscale the masks to the original image resolution
-        masks = self.model.postprocess_masks(low_res_masks, self.input_size, self.original_size)
-
-        print("output mask shape:", masks.shape, masks[0, 0, :, :])
-
-        if not return_logits:
-            masks = masks > self.model.mask_threshold
-        return masks, iou_predictions, low_res_masks
 
 class EfficientViTSamAutomaticMaskGenerator():
     def __init__(
@@ -770,7 +619,6 @@ class EfficientViTSamAutomaticMaskGenerator():
                crop_box (list(float)): The crop of the image used to generate
                  the mask, given in XYWH format.
         """
-        increment = round(len(gaze_points)/self.points_per_batch)
         self.gaze_points = gaze_points
 
         # Generate masks
@@ -864,20 +712,11 @@ class EfficientViTSamAutomaticMaskGenerator():
         orig_size: Tuple[int, ...],
     ) -> MaskData:
         # Crop the image and calculate embeddings
-        a = time.time()
         x0, y0, x1, y1 = crop_box
         cropped_im = image[y0:y1, x0:x1, :]
         cropped_im_size = cropped_im.shape[:2]
-        b = time.time()
-        print("\t\t\tcrop preprocess time:", b - a)
+
         self.predictor.set_image_trt(cropped_im)
-        c = time.time()
-        # Get points for this crop
-        # points_scale = np.array(cropped_im_size)[None, ::-1]
-        # points_for_image = self.point_grids[crop_layer_idx] * points_scale
-        d = time.time()
-        print("\t\t\tMASK ENCODER TIME:", c - b)
-        print("\t\t\tpoint preprocessing time:", d - c)
 
         # Generate masks for this crop in batches
         data = MaskData()   
@@ -940,6 +779,7 @@ class EfficientViTSamAutomaticMaskGenerator():
             multimask_output=True,
             return_logits=True,
         )
+        print(iou_preds[0][0], masks[0][0][0][0])
         c = time.time()
         print("\t\t\t\tBATCH DECODER TIME:", c - b)
 
