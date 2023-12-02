@@ -14,7 +14,7 @@ from efficient_vit.efficientvit.models.utils import load_state_dict_from_file
 __all__ = ["create_sam_model"]
 
 
-REGISTERED_SAM_MODEL: dict[str, str] = {
+REGISTERED_SAM_MODEL = {
     "l0": "efficient_vit/assets/checkpoints/sam/l0.pt",
     "l1": "efficient_vit/assets/checkpoints/sam/l1.pt",
     "l2": "efficient_vit/assets/checkpoints/sam/l2.pt",

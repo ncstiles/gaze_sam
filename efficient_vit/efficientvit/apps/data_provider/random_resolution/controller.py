@@ -24,15 +24,15 @@ class RRSController:
     CHOICE_LIST = None
 
     @staticmethod
-    def get_candidates() -> list[tuple[int, int]]:
+    def get_candidates():
         return copy.deepcopy(RRSController.IMAGE_SIZE_LIST)
 
     @staticmethod
-    def sample_resolution(batch_id: int) -> None:
+    def sample_resolution(batch_id):
         RRSController.ACTIVE_SIZE = RRSController.CHOICE_LIST[batch_id]
 
     @staticmethod
-    def set_epoch(epoch: int, batch_per_epoch: int) -> None:
+    def set_epoch(epoch, batch_per_epoch):
         g = torch.Generator()
         g.manual_seed(epoch)
         RRSController.CHOICE_LIST = torch_random_choices(
@@ -73,17 +73,17 @@ class MyRandomResizedCrop(transforms.RandomResizedCrop):
         self,
         scale=(0.08, 1.0),
         ratio=(3.0 / 4.0, 4.0 / 3.0),
-        interpolation: str = "random",
+        interpolation="random",
     ):
         super(MyRandomResizedCrop, self).__init__(224, scale, ratio)
         self.interpolation = interpolation
 
-    def forward(self, img: torch.Tensor) -> torch.Tensor:
+    def forward(self, img):
         i, j, h, w = self.get_params(img, list(self.scale), list(self.ratio))
         target_size = RRSController.ACTIVE_SIZE
         return F.resized_crop(img, i, j, h, w, list(target_size), get_interpolate(self.interpolation))
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         format_string = self.__class__.__name__
         format_string += f"(\n\tsize={RRSController.get_candidates()},\n"
         format_string += f"\tscale={tuple(round(s, 4) for s in self.scale)},\n"

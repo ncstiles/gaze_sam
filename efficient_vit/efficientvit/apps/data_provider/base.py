@@ -14,7 +14,8 @@ from efficient_vit.efficientvit.models.utils import val2tuple
 __all__ = ["parse_image_size", "random_drop_data", "DataProvider"]
 
 
-def parse_image_size(size: int or str) -> tuple[int, int]:
+# def parse_image_size(size: int or str) -> tuple[int, int]:
+def parse_image_size(size):
     if isinstance(size, str):
         size = [int(val) for val in size.split("-")]
         return size[0], size[1]
@@ -22,7 +23,8 @@ def parse_image_size(size: int or str) -> tuple[int, int]:
         return val2tuple(size, 2)
 
 
-def random_drop_data(dataset, drop_size: int, seed: int, keys=("samples",)):
+# def random_drop_data(dataset, drop_size: int, seed: int, keys=("samples",)):
+def random_drop_data(dataset, drop_size, seed, keys=("samples",)):
     g = torch.Generator()
     g.manual_seed(seed)  # set random seed before sampling validation set
     rand_indexes = torch.randperm(len(dataset), generator=g).tolist()
@@ -47,15 +49,15 @@ class DataProvider:
 
     def __init__(
         self,
-        train_batch_size: int,
-        test_batch_size: int or None,
-        valid_size: int or float or None,
-        n_worker: int,
-        image_size: int or list[int] or str or list[str],
-        num_replicas: int or None = None,
-        rank: int or None = None,
-        train_ratio: float or None = None,
-        drop_last: bool = False,
+        train_batch_size,
+        test_batch_size,
+        valid_size,
+        n_worker,
+        image_size,
+        num_replicas=None,
+        rank=None,
+        train_ratio=None,
+        drop_last=False,
     ):
         warnings.filterwarnings("ignore")
         super().__init__()
@@ -101,19 +103,24 @@ class DataProvider:
         self.sub_train = None
 
     @property
-    def data_shape(self) -> tuple[int, ...]:
+    # def data_shape(self) -> tuple[int, ...]:
+    def data_shape(self):
         return 3, self.active_image_size[0], self.active_image_size[1]
 
-    def build_valid_transform(self, image_size: tuple[int, int] or None = None) -> any:
+    # def build_valid_transform(self, image_size: tuple[int, int] or None = None) -> any:
+    def build_valid_transform(self, image_size=None):
         raise NotImplementedError
 
-    def build_train_transform(self, image_size: tuple[int, int] or None = None) -> any:
+    # def build_train_transform(self, image_size: tuple[int, int] or None = None) -> any:
+    def build_train_transform(self, image_size=None):
         raise NotImplementedError
 
-    def build_datasets(self) -> tuple[any, any, any]:
+    # def build_datasets(self) -> tuple[any, any, any]:
+    def build_datasets(self):
         raise NotImplementedError
 
-    def build_dataloader(self, dataset: any or None, batch_size: int, n_worker: int, drop_last: bool, train: bool):
+    # def build_dataloader(self, dataset: any or None, batch_size: int, n_worker: int, drop_last: bool, train: bool):
+    def build_dataloader(self, dataset, batch_size, n_worker, drop_last, train):
         if dataset is None:
             return None
         if isinstance(self.image_size, list) and train:
@@ -142,18 +149,21 @@ class DataProvider:
                 drop_last=drop_last,
             )
 
-    def set_epoch(self, epoch: int) -> None:
+    # def set_epoch(self, epoch: int) -> None:
+    def set_epoch(self, epoch):
         RRSController.set_epoch(epoch, len(self.train))
         if isinstance(self.train.sampler, DistributedSampler):
             self.train.sampler.set_epoch(epoch)
 
-    def assign_active_image_size(self, new_size: int or tuple[int, int]) -> None:
+    # def assign_active_image_size(self, new_size: int or tuple[int, int]) -> None:
+    def assign_active_image_size(self, new_size):
         self.active_image_size = val2tuple(new_size, 2)
         new_transform = self.build_valid_transform(self.active_image_size)
         # change the transform of the valid and test set
         self.valid.dataset.transform = self.test.dataset.transform = new_transform
 
-    def sample_val_dataset(self, train_dataset, valid_transform) -> tuple[any, any]:
+    # def sample_val_dataset(self, train_dataset, valid_transform) -> tuple[any, any]:
+    def sample_val_dataset(self, train_dataset, valid_transform):
         if self.valid_size is not None:
             if 0 < self.valid_size < 1:
                 valid_size = int(self.valid_size * len(train_dataset))
@@ -171,7 +181,8 @@ class DataProvider:
             val_dataset = None
         return train_dataset, val_dataset
 
-    def build_sub_train_loader(self, n_samples: int, batch_size: int) -> any:
+    # def build_sub_train_loader(self, n_samples: int, batch_size: int) -> any:
+    def build_sub_train_loader(self, n_samples, batch_size):
         # used for resetting BN running statistics
         if self.sub_train is None:
             self.sub_train = {}

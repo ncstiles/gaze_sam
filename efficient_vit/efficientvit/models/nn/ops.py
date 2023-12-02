@@ -81,7 +81,7 @@ class UpSampleLayer(nn.Module):
     def __init__(
         self,
         mode="bicubic",
-        size: int or tuple[int, int] or list[int] or None = None,
+        size=None,
         factor=2,
         align_corners=False,
     ):
@@ -343,7 +343,7 @@ class LiteMLA(nn.Module):
         norm=(None, "bn2d"),
         act_func=(None, None),
         kernel_func="relu",
-        scales: tuple[int, ...] = (5,),
+        scales = (5,),
         eps=1.0e-15,
     ):
         super(LiteMLA, self).__init__()
@@ -523,11 +523,11 @@ class ResidualBlock(nn.Module):
 class DAGBlock(nn.Module):
     def __init__(
         self,
-        inputs: dict[str, nn.Module],
+        inputs,
         merge: str,
         post_input: nn.Module or None,
         middle: nn.Module,
-        outputs: dict[str, nn.Module],
+        outputs,
     ):
         super(DAGBlock, self).__init__()
 
@@ -541,7 +541,7 @@ class DAGBlock(nn.Module):
         self.output_keys = list(outputs.keys())
         self.output_ops = nn.ModuleList(list(outputs.values()))
 
-    def forward(self, feature_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def forward(self, feature_dict):
         feat = [op(feature_dict[key]) for key, op in zip(self.input_keys, self.input_ops)]
         if self.merge == "add":
             feat = list_sum(feat)
@@ -558,7 +558,7 @@ class DAGBlock(nn.Module):
 
 
 class OpSequential(nn.Module):
-    def __init__(self, op_list: list[nn.Module or None]):
+    def __init__(self, op_list):
         super(OpSequential, self).__init__()
         valid_op_list = []
         for op in op_list:

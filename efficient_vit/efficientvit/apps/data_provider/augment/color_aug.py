@@ -11,10 +11,10 @@ __all__ = ["ColorAug", "RandAug"]
 
 
 class ImageAug:
-    def aug_image(self, image: Image.Image) -> Image.Image:
+    def aug_image(self, image):
         raise NotImplementedError
 
-    def __call__(self, feed_dict: dict or np.ndarray or Image.Image) -> dict or np.ndarray or Image.Image:
+    def __call__(self, feed_dict):
         if isinstance(feed_dict, dict):
             output_dict = feed_dict
             image = feed_dict[self.key]
@@ -47,15 +47,15 @@ class ColorAug(transforms.ColorJitter, ImageAug):
         )
         self.key = key
 
-    def aug_image(self, image: Image.Image) -> Image.Image:
+    def aug_image(self, image):
         return transforms.ColorJitter.forward(self, image)
 
-    def forward(self, feed_dict: dict or np.ndarray or Image.Image) -> dict or np.ndarray or Image.Image:
+    def forward(self, feed_dict):
         return ImageAug.__call__(self, feed_dict)
 
 
 class RandAug(ImageAug):
-    def __init__(self, config: dict[str, any], mean: tuple[float, float, float], key="data"):
+    def __init__(self, config, mean, key="data"):
         n = config.get("n", 2)
         m = config.get("m", 9)
         mstd = config.get("mstd", 0.5)
@@ -71,7 +71,7 @@ class RandAug(ImageAug):
         self.aug_op = rand_augment_transform(config_str, aa_params)
         self.key = key
 
-    def aug_image(self, image: Image.Image) -> Image.Image:
+    def aug_image(self, image):
         return self.aug_op(image)
 
     def __repr__(self):

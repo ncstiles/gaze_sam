@@ -19,29 +19,28 @@ __all__ = [
 ]
 
 
-def is_parallel(model: nn.Module) -> bool:
+def is_parallel(model):
     return isinstance(model, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel))
 
 
-def get_device(model: nn.Module) -> torch.device:
+def get_device(model):
     return model.parameters().__next__().device
 
 
-def get_same_padding(kernel_size: int or tuple[int, ...]) -> int or tuple[int, ...]:
+def get_same_padding(kernel_size):
     if isinstance(kernel_size, tuple):
         return tuple([get_same_padding(ks) for ks in kernel_size])
     else:
         assert kernel_size % 2 > 0, "kernel size should be odd number"
         return kernel_size // 2
 
-
 def resize(
-    x: torch.Tensor,
-    size: any or None = None,
-    scale_factor: list[float] or None = None,
-    mode: str = "bicubic",
-    align_corners: bool or None = False,
-) -> torch.Tensor:
+    x,
+    size,
+    scale_factor=None,
+    mode="bicubic",
+    align_corners=False,
+):
     if mode in {"bilinear", "bicubic"}:
         return F.interpolate(
             x,
@@ -56,7 +55,7 @@ def resize(
         raise NotImplementedError(f"resize(mode={mode}) not implemented.")
 
 
-def build_kwargs_from_config(config: dict, target_func: callable) -> dict[str, any]:
+def build_kwargs_from_config(config, target_func):
     valid_keys = list(signature(target_func).parameters)
     kwargs = {}
     for key in config:
@@ -65,7 +64,7 @@ def build_kwargs_from_config(config: dict, target_func: callable) -> dict[str, a
     return kwargs
 
 
-def load_state_dict_from_file(file: str, only_state_dict=True) -> dict[str, torch.Tensor]:
+def load_state_dict_from_file(file, only_state_dict=True):
     file = os.path.realpath(os.path.expanduser(file))
     checkpoint = torch.load(file, map_location="cpu")
     if only_state_dict and "state_dict" in checkpoint:

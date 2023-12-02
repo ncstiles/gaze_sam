@@ -8,11 +8,11 @@ __all__ = ["rand_bbox"]
 
 
 def rand_bbox(
-    h: int,
-    w: int,
-    lam: float,
-    rand_func: callable = np.random.uniform,
-) -> tuple[int, int, int, int]:
+    h,
+    w,
+    lam,
+    rand_func,
+):    
     """randomly sample bbox, used in cutmix"""
     cut_rat = np.sqrt(1.0 - lam)
     cut_w = w * cut_rat
