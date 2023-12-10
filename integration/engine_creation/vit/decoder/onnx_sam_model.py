@@ -85,6 +85,19 @@ class EfficientSamOnnxModel(nn.Module):
             ].weight * (point_labels == i)
 
         return point_embedding
+    
+    def _embed_boxes(self, boxes: torch.Tensor) -> torch.Tensor:
+        boxes = boxes + 0.5
+        coords = boxes.reshape(-1, 2, 2)
+
+        # forward with coords in SAM
+        coords /= self.img_size # TODO: check if this is the right thing. they divide by img_size[::-1]
+        corner_embedding = self.model.prompt_encoder.pe_layer._pe_encoding(coords)
+
+        corner_embedding[:, 0, :] += self.model.prompt_encoder.point_embeddings[2].weight
+        corner_embedding[:, 1, :] += self.model.prompt_encoder.point_embeddings[3].weight
+        
+        return corner_embedding
 
     def _embed_masks(self, input_mask: torch.Tensor, has_mask_input: torch.Tensor) -> torch.Tensor:
         mask_embedding = has_mask_input * self.model.prompt_encoder.mask_downscaling(input_mask)
@@ -128,13 +141,20 @@ class EfficientSamOnnxModel(nn.Module):
     def forward(
         self,
         image_embeddings: torch.Tensor,
-        point_coords: torch.Tensor,
-        point_labels: torch.Tensor,
+        boxes: torch.Tensor,
         mask_input: torch.Tensor,
         has_mask_input: torch.Tensor,
-        # orig_im_size: torch.Tensor,
     ):
-        sparse_embedding = self._embed_points(point_coords, point_labels)
+        # point_coords: torch.Tensor,
+        # point_labels: torch.Tensor,
+        # orig_im_size: torch.Tensor,
+        # sparse_embedding = None
+        # if point_coords is not None and point_labels is not None:
+        #     print("sparse embedding using points")
+        #     sparse_embedding = self._embed_points(point_coords, point_labels)
+        # else:
+        #     print("sparse embedding using boxes")
+        sparse_embedding = self._embed_boxes(boxes)
         dense_embedding = self._embed_masks(mask_input, has_mask_input)
 
         masks, scores = self.model.mask_decoder.predict_masks(
@@ -144,13 +164,14 @@ class EfficientSamOnnxModel(nn.Module):
             dense_prompt_embeddings=dense_embedding,
         )
 
-        if self.use_stability_score:
-            scores = calculate_stability_score(
-                masks, self.model.mask_threshold, self.stability_score_offset
-            )
+        return scores, masks
+        # if self.use_stability_score:
+        #     scores = calculate_stability_score(
+        #         masks, self.model.mask_threshold, self.stability_score_offset
+        #     )
 
-        if self.return_single_mask:
-            masks, scores = self.select_masks(masks, scores, point_coords.shape[1])
+        # if self.return_single_mask:
+        #     masks, scores = self.select_masks(masks, scores, point_coords.shape[1])
 
         # upscaled_masks = self.mask_postprocessing(masks, orig_im_size)
 
@@ -162,7 +183,6 @@ class EfficientSamOnnxModel(nn.Module):
         #     return upscaled_masks, scores, stability_scores, areas, masks
 
         # return upscaled_masks, scores, masks        
-        return scores, masks
 
         # masks_modified = masks.reshape((32, 4, -1))
         # scores_modified = scores.unsqueeze(2)

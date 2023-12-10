@@ -9,8 +9,32 @@ import torch
 
 import sys
 sys.path.append("../")
-from proxylessnas.proxyless_gaze.deployment.onnx.demo_utils import multiclass_nms, demo_postprocess, Timer, draw_gaze
+from proxylessnas.proxyless_gaze.deployment.onnx.demo_utils import multiclass_nms, demo_postprocess, Timer
 from load_engine import load_face_detection_engine, load_gaze_estimation_engine, load_landmark_detection_engine
+
+def draw_gaze(image_in, eye_pos, pitchyaw, length=15.0, thickness=1, color=(0, 0, 255), draw=True):
+    """Draw gaze angle on given image with a given eye positions."""
+    image_out = image_in
+    if len(image_out.shape) == 2 or image_out.shape[2] == 1:
+        image_out = cv2.cvtColor(image_out, cv2.COLOR_GRAY2BGR)
+    dx = -length * np.sin(pitchyaw[1]) * np.cos(pitchyaw[0])
+    dy = -length * np.sin(pitchyaw[0])
+
+    arrow_head = tuple(np.round(eye_pos).astype(np.int32))
+    arrow_tail = tuple(np.round([eye_pos[0] + dx, eye_pos[1] + dy]).astype(int))
+
+    if draw:
+        cv2.arrowedLine(image_out, 
+                        arrow_head,
+                        arrow_tail, 
+                        color,
+                        thickness, 
+                        cv2.LINE_AA, 
+                        tipLength=0.2)
+
+        cv2.circle(image_out, arrow_tail, 2, (255, 0, 0), thickness=5)
+
+    return image_out, arrow_head, arrow_tail
 
 face_model = np.float32([
     [-63.833572,  63.223045,  41.1674  ], # RIGHT_EYEBROW_RIGHT,
@@ -149,20 +173,37 @@ def normalizeDataForInference(img, hr, ht):
     return data
 
 def visualize(img, face=None, landmark=None, gaze_pitchyaw=None, headpose=None):
+    # if face is not None:
+    #     bbox = face[:4].astype(int)
+    #     score = face[4]
+    #     cv2.rectangle(img, tuple(bbox[:2]), tuple(bbox[2:]), (0,255,0), 2)
+    #     text = f'conf: {score * 100:.1f}%'
+    #     txt_color = (0, 255, 0)
+    #     font = cv2.FONT_HERSHEY_SIMPLEX
+    #     cv2.putText(img, text, (bbox[0], bbox[1]-5), font, 0.5, txt_color, thickness=1)
+    # if landmark is not None:
+    #     for i, (x, y) in enumerate(landmark.astype(np.int32)):
+    #         cv2.circle(img, (x, y), 2, (255, 0, 0), thickness=-1)
+    # if gaze_pitchyaw is not None:
+    #     eye_pos = landmark[-2:].mean(0)
+    #     draw_gaze(img, eye_pos, gaze_pitchyaw, 300, 4)
+    img_copy = img.copy()
+    print("in visualize")
+    print(face is not None, landmark is not None, gaze_pitchyaw is not None)
     if face is not None:
         bbox = face[:4].astype(int)
         score = face[4]
-        cv2.rectangle(img, tuple(bbox[:2]), tuple(bbox[2:]), (0,255,0), 2)
+        cv2.rectangle(img_copy, tuple(bbox[:2]), tuple(bbox[2:]), (0,255,0), 2)
         text = f'conf: {score * 100:.1f}%'
         txt_color = (0, 255, 0)
         font = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(img, text, (bbox[0], bbox[1]-5), font, 0.5, txt_color, thickness=1)
+        cv2.putText(img_copy, text, (bbox[0], bbox[1]-5), font, 0.5, txt_color, thickness=1)
     if landmark is not None:
         for i, (x, y) in enumerate(landmark.astype(np.int32)):
-            cv2.circle(img, (x, y), 2, (255, 0, 0), thickness=-1)
+            cv2.circle(img_copy, (x, y), 2, (255, 0, 0), thickness=-1)
     if gaze_pitchyaw is not None:
         eye_pos = landmark[-2:].mean(0)
-        draw_gaze(img, eye_pos, gaze_pitchyaw, 300, 4)
+        img_copy, src, dst = draw_gaze(img_copy, eye_pos, gaze_pitchyaw, 300, 4)
     if headpose is not None:
         rvec = headpose[0]
         tvec = headpose[1]
@@ -177,20 +218,31 @@ def visualize(img, face=None, landmark=None, gaze_pitchyaw=None, headpose=None):
         modelpts = modelpts.astype(int)
         delta = modelpts[-1].ravel() - imgpts[-1].ravel()
         imgpts += delta
-        cv2.line(img, tuple(imgpts[-1].ravel()), tuple(imgpts[0].ravel()), (255, 0, 0), 3) # Blue x-axis
-        cv2.line(img, tuple(imgpts[-1].ravel()), tuple(imgpts[1].ravel()), (0, 255, 0), 3) # Green y-axis
-        cv2.line(img, tuple(imgpts[-1].ravel()), tuple(imgpts[2].ravel()), (0, 0, 255), 3) # Red z-axis
+    #     cv2.line(img, tuple(imgpts[-1].ravel()), tuple(imgpts[0].ravel()), (255, 0, 0), 3) # Blue x-axis
+    #     cv2.line(img, tuple(imgpts[-1].ravel()), tuple(imgpts[1].ravel()), (0, 255, 0), 3) # Green y-axis
+    #     cv2.line(img, tuple(imgpts[-1].ravel()), tuple(imgpts[2].ravel()), (0, 0, 255), 3) # Red z-axis
+    #     # for i, pt in enumerate(modelpts):
+    #     #     cv2.circle(img, tuple(pt.ravel()), 4, (0, 0, 255), thickness=-1)
+    #     #     cv2.putText(img, f"{i}", tuple(pt.ravel()), font, 0.5, txt_color, thickness=1)
+    # return img
+        cv2.line(img_copy, tuple(imgpts[-1].ravel()), tuple(imgpts[0].ravel()), (255, 0, 0), 3) # Blue x-axis
+        cv2.line(img_copy, tuple(imgpts[-1].ravel()), tuple(imgpts[1].ravel()), (0, 255, 0), 3) # Green y-axis
+        cv2.line(img_copy, tuple(imgpts[-1].ravel()), tuple(imgpts[2].ravel()), (0, 0, 255), 3) # Red z-axis
         # for i, pt in enumerate(modelpts):
         #     cv2.circle(img, tuple(pt.ravel()), 4, (0, 0, 255), thickness=-1)
         #     cv2.putText(img, f"{i}", tuple(pt.ravel()), font, 0.5, txt_color, thickness=1)
-    return img
+    return img_copy, src, dst
 
 def visualize_simple(img, face=None, landmark=None, gaze_pitchyaw=None, headpose=None):
     if gaze_pitchyaw is not None:
         eye_pos = landmark[-2:].mean(0)
-        draw_gaze(img, eye_pos, gaze_pitchyaw, 300, 4)
+        return draw_gaze(img, eye_pos, gaze_pitchyaw, draw=False)
+    #     draw_gaze(img, eye_pos, gaze_pitchyaw, 300, 4)
     
-    return img
+    # return img
+    
+    print("Unable to visualize the gaze as there is no gaze pitchyaw")
+    return None, None, None
 
 def detect_face_original(img, session, score_thr=0.5, input_shape=(160, 128)) -> np.ndarray:
     img, ratio = yolox_preprocess(img, input_shape)
@@ -389,13 +441,22 @@ def get_pixels_on_line(img, start_point, end_point):
     error = dx - dy
     x, y = x1, y1
 
-    x_vals, y_vals = [], []
+    # x_vals, y_vals = [], []
+
+    # # Iterate through the line and add pixels to the result
+    # while 0 <= x < w and 0 <= y < h:
+    #     # Add the current pixel to the list
+    #     x_vals.append(x)
+    #     y_vals.append(y)
+    # x_vals, y_vals = [], []
 
     # Iterate through the line and add pixels to the result
     while 0 <= x < w and 0 <= y < h:
+        if error == 0:
+            break
         # Add the current pixel to the list
-        x_vals.append(x)
-        y_vals.append(y)
+        # x_vals.append(x)
+        # y_vals.append(y)
 
         # Calculate error and next position
         double_error = 2 * error
@@ -407,8 +468,14 @@ def get_pixels_on_line(img, start_point, end_point):
             y += y_increment
 
     # Add the last pixel (end_point) to the list
-    x_vals.append(x2)
-    y_vals.append(y2)
+    # x_vals.append(x2)
+    # y_vals.append(y2)
 
-    gaze_points = np.column_stack((x_vals, y_vals))
-    return gaze_points
+    # gaze_points = np.column_stack((x_vals, y_vals))
+    # return gaze_points
+    end_point = (x2, y2)
+    # x_vals.append(x2)
+    # y_vals.append(y2)
+
+    # gaze_points = np.column_stack((x_vals, y_vals))
+    return start_point, (x2, y2)

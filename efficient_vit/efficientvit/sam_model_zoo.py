@@ -40,7 +40,6 @@ def create_sam_model(name: str, pretrained=True, weight_url: str or None = None,
         if weight_url is None:
             raise ValueError(f"Do not find the pretrained weight of {name}.")
         else:
-            print("loading model:", weight_url)
             weight = load_state_dict_from_file("../" + weight_url)
             model.load_state_dict(weight)
     return model

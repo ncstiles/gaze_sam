@@ -1,5 +1,5 @@
-ONNXPATH="../../engines/yolo/onnx/yolo_k9.onnx"
-ENGINEPATH="../../engines/yolo/yolo_fp32_g0_trt8.6.engine"
+ONNXPATH="yolo_fp32.onnx"
+ENGINEPATH="../../engines/yolo/yolo_fp32.engine"
 echo "export yolo nas engine >>>"
 
 python -m make_yolo \

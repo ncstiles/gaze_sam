@@ -3,6 +3,7 @@
 # International Conference on Computer Vision (ICCV), 2023
 from typing import Any, Dict, List, Optional, Tuple
 import copy
+import cv2
 
 import numpy as np
 import torch
@@ -483,9 +484,33 @@ class EfficientViTSamPredictor:
         mask_input = torch.tensor(mask_input).cuda()
         has_mask_input = torch.tensor(has_mask_input).cuda()
 
-        iou_predictions, low_res_masks = self.decoder(self.features, point_coords, point_labels, mask_input, has_mask_input)
+        # iou_predictions, low_res_masks = self.decoder(self.features, point_coords, point_labels, mask_input, has_mask_input)
         
         # Upscale the masks to the original image resolution
+        print("features shape:", self.features.shape)
+        print("boxes shape:", boxes.shape)
+        print("mask_input shape:", mask_input.shape)
+        print("has_mask_input shape:", has_mask_input.shape)
+        iou_predictions, low_res_masks = self.decoder(
+                                    self.features, 
+                                    boxes, 
+                                    mask_input, 
+                                    has_mask_input)
+
+        # iou_predictions, low_res_masks = self.decoder(
+        #                                     self.features, 
+        #                                     point_coords, 
+        #                                     point_labels, 
+        #                                     boxes, 
+        #                                     mask_input, 
+        #                                     has_mask_input)
+        
+        # Upscale the masks to the original image resolution
+        print("self input size:", self.input_size)
+        print("self original size;", self.original_size)
+        print("low res masks shape:", low_res_masks.shape)
+        print("sampling:", low_res_masks[0][0][0][:10])
+        
         masks = self.model.postprocess_masks(low_res_masks, self.input_size, self.original_size)
 
         if not return_logits:
@@ -595,7 +620,8 @@ class EfficientViTSamAutomaticMaskGenerator():
         self.output_mode = output_mode
 
     @torch.no_grad()
-    def generate(self, image: np.ndarray, gaze_points: np.ndarray) -> List[Dict[str, Any]]:
+    # def generate(self, image: np.ndarray, gaze_points: np.ndarray) -> List[Dict[str, Any]]:
+    def generate(self, image: np.ndarray, gaze_points: np.ndarray, bounding_boxes: np.ndarray) -> List[Dict[str, Any]]:
         """
         Generates masks for the given image.
 
@@ -619,12 +645,15 @@ class EfficientViTSamAutomaticMaskGenerator():
                crop_box (list(float)): The crop of the image used to generate
                  the mask, given in XYWH format.
         """
-        self.gaze_points = gaze_points
+        # self.gaze_points = gaze_points
+        self.bounding_boxes = bounding_boxes
 
         # Generate masks
         a = time.time()
         mask_data = self._generate_masks(image)
         b = time.time()
+        print("MASK GEN TIME", b-a)
+        return mask_data
 
         # Filter small disconnected regions and holes in masks
         if self.min_mask_region_area > 0:
@@ -681,6 +710,7 @@ class EfficientViTSamAutomaticMaskGenerator():
         for crop_box, layer_idx in zip(crop_boxes, layer_idxs):
             a = time.time()
             crop_data = self._process_crop(image, crop_box, layer_idx, orig_size)
+            return crop_data
             data.cat(crop_data)
             b = time.time()
             print("\t\tcrop process time:", b - a)
@@ -722,7 +752,8 @@ class EfficientViTSamAutomaticMaskGenerator():
         data = MaskData()   
 
         e = time.time()
-        batch_data = self._process_batch(self.gaze_points, cropped_im_size, crop_box, orig_size)
+        batch_data = self._process_batch(self.bounding_boxes, cropped_im_size, crop_box, orig_size)
+        return batch_data
         f = time.time()
         print("\t\t\tbatch process time:", f - e)
         data.cat(batch_data)
@@ -759,29 +790,65 @@ class EfficientViTSamAutomaticMaskGenerator():
 
     def _process_batch(
         self,
-        points: np.ndarray,
+        # points: np.ndarray,
+        boxes: np.ndarray,
         im_size: Tuple[int, ...],
         crop_box: List[int],
         orig_size: Tuple[int, ...],
     ) -> MaskData:
         orig_h, orig_w = orig_size
 
+        # a = time.time()
+        # # Run model on this batch
+        # transformed_points = self.predictor.transform.apply_coords(points, im_size)
+        # in_points = torch.as_tensor(transformed_points.astype(np.float32), device=self.predictor.device)
+        # in_labels = torch.ones(in_points.shape[0], dtype=torch.int, device=in_points.device)
+        # b = time.time()
+        # print("\t\t\t\tbatch preprocess time:", b - a)
+        # iou_preds, masks = self.predictor.predict_torch_trt(
+        #     in_points[:, None, :],
+        #     in_labels[:, None],
+        #     multimask_output=True,
+        #     return_logits=True,
+        # )
+        # print(iou_preds[0][0], masks[0][0][0][0])
+        # c = time.time()
+        # print("\t\t\t\tBATCH DECODER TIME:", c - b)
+
+        output_masks = []
+
         a = time.time()
         # Run model on this batch
-        transformed_points = self.predictor.transform.apply_coords(points, im_size)
-        in_points = torch.as_tensor(transformed_points.astype(np.float32), device=self.predictor.device)
-        in_labels = torch.ones(in_points.shape[0], dtype=torch.int, device=in_points.device)
+        print("boxes before:", boxes.shape)
+        # boxes = np.array([[109, 133, 382, 552]])
+        # transformed_points = self.predictor.transform.apply_coords(points, im_size)
+        transformed_boxes = self.predictor.transform.apply_boxes(boxes, im_size)
+        transformed_boxes = transformed_boxes.reshape((-1, 1, 4))
+        print("transformed boxes:", transformed_boxes.shape)
+        box_points = torch.as_tensor(transformed_boxes.astype(np.float32), device=self.predictor.device)
         b = time.time()
         print("\t\t\t\tbatch preprocess time:", b - a)
+        aa = time.time()
         iou_preds, masks = self.predictor.predict_torch_trt(
-            in_points[:, None, :],
-            in_labels[:, None],
+            None,
+            None,
+            box_points,
             multimask_output=True,
             return_logits=True,
         )
-        print(iou_preds[0][0], masks[0][0][0][0])
+
+        print("masks shape:", masks.shape)
+        print("iou preds shape:", iou_preds.shape)
+
         c = time.time()
         print("\t\t\t\tBATCH DECODER TIME:", c - b)
+
+        masks = masks.detach().cpu().numpy()
+
+        masks = masks > self.stability_score_thresh
+        bb = time.time()
+        print("DECODER TIME:", bb - aa)
+        return masks
 
         # Serialize predictions and store in MaskData
         data = MaskData(

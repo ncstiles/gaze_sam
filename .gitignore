@@ -6,3 +6,9 @@ __init__.py
 *.jpg
 *.cache
 *.pt
+*.mp4
+*.o
+*.c
+*.so
+*.pyx
+*.cache

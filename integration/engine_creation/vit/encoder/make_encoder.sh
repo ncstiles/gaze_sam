@@ -1,12 +1,12 @@
-ONNXPATH="../../../engines/vit/onnx/encoder_k9_fp32.onnx"
-ENGINEPATH="../../../engines/vit/encoder_g0_fp32_trt8.6.engine"
+ONNXPATH="../../../engines/vit/onnx/encoder_fp32.onnx"
+ENGINEPATH="../../../engines/vit/encoder_fp32.engine"
 
 echo "export efficientvit sam encoder (no built-in preprocessing)>>>"
 
 python -m make_encoder \
-    --checkpoint l1.pt \
+    --checkpoint l0.pt \
     --output $ONNXPATH \
-    --model-type l1 \
+    --model-type l0 \
     --opset 12 \
     
 echo "--- base onnx file creation complete ---"

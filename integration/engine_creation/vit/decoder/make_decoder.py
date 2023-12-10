@@ -115,28 +115,42 @@ def run_export(
                 m.approximate = "tanh"
 
     # dynamic_axes = {
-    #     "point_coords": {0: "batch_size"},
-    #     "point_labels": {0: "batch_size"},
+    #     "point_coords": {0: "num_batches", 2: "num_points"},
+    #     "point_labels": {0: "num_batches"},
     # }
-    dynamic_axes = None
+    dynamic_axes = {
+        "boxes": {0: "num_batches"}
+    }
+    # dynamic_axes = None
 
     embed_dim = efficientvit_sam.prompt_encoder.embed_dim
     embed_size = efficientvit_sam.prompt_encoder.image_embedding_size
     mask_input_size = [4 * x for x in embed_size]
     dummy_inputs = {
-        "image_embeddings": torch.randn(
-            1, embed_dim, *embed_size, dtype=torch.float
-        ),
-        "point_coords": torch.randint(
-            low=0, high=1024, size=(32, 1, 2), dtype=torch.float
-        ),
-        "point_labels": torch.randint(
-            low=0, high=4, size=(32, 1), dtype=torch.float
-        ),
+        # "image_embeddings": torch.randn(
+        #     1, embed_dim, *embed_size, dtype=torch.float
+        # ),
+        # "point_coords": torch.randint(
+        #     low=0, high=1024, size=(32, 1, 2), dtype=torch.float
+        # ),
+        # "point_labels": torch.randint(
+        #     low=0, high=4, size=(32, 1), dtype=torch.float
+        # ),
+        # "mask_input": torch.randn(1, 1, *mask_input_size, dtype=torch.float),
+        # "has_mask_input": torch.tensor([1], dtype=torch.float)
+        # "orig_im_size": torch.tensor([1944, 2592], dtype=torch.float),
+        "image_embeddings": torch.randn(1, embed_dim, *embed_size, dtype=torch.float),
+        "boxes": torch.randint(low=0, high=1024, size=(1, 1, 4), dtype=torch.float),
         "mask_input": torch.randn(1, 1, *mask_input_size, dtype=torch.float),
         "has_mask_input": torch.tensor([1], dtype=torch.float)
-        # "orig_im_size": torch.tensor([1944, 2592], dtype=torch.float),
     }
+        # "point_coords": torch.randint(
+        #     low=0, high=1024, size=(32, 1, 2), dtype=torch.float
+        # ),
+        # "point_labels": torch.randint(
+        #     low=0, high=4, size=(32, 1), dtype=torch.float
+        # ),
+        # "orig_im_size": torch.tensor([1944, 2592], dtype=torch.float),
 
     _ = onnx_model(**dummy_inputs)
 

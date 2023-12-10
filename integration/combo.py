@@ -106,24 +106,28 @@ def prime_yolo(trt_yolo):
         yolo_img = torch.Tensor(expanded_img).cuda()
         trt_yolo(yolo_img)
 
-def main(image_path, gaze_start, gaze_end):
+def main(image_path):
     y = time.time()
     args = get_cli_args()
 
     # point processing
-    args.gaze_start = yaml.safe_load(args.gaze_start)
-    args.gaze_end = yaml.safe_load(args.gaze_end)
+    # args.gaze_start = yaml.safe_load(args.gaze_start)
+    # args.gaze_end = yaml.safe_load(args.gaze_end)
+
+    # # remove, this is just for testing
+    # args.image_path = image_path
+    # args.gaze_start = gaze_start
+    # args.gaze_end = gaze_end
 
     # remove, this is just for testing
     args.image_path = image_path
-    args.gaze_start = gaze_start
-    args.gaze_end = gaze_end
 
     # vit initialization
     # trt_encoder_path = "engines/vit/encoder_k9_fp32_trt8.6.engine"
     trt_encoder_path = "engines/vit/encoder_fp16_trt8.6.engine"
 
-    trt_decoder_path = "engines/vit/decoder_fp16_k9_unstacked_l0_opset11.engine"
+    # trt_decoder_path = "engines/vit/decoder_fp16_k9_unstacked_l0_opset11.engine"
+    trt_decoder_path = "engines/vit/decoder_for_boxes.engine"
     efficientvit_sam = create_sam_model(args.model, True, None).cuda().eval()
     efficientvit_mask_generator = EfficientViTSamAutomaticMaskGenerator(efficientvit_sam, trt_encoder_path=trt_encoder_path, trt_decoder_path=trt_decoder_path)
 
@@ -158,7 +162,7 @@ def main(image_path, gaze_start, gaze_end):
         raw_image = cv2.resize(raw_image, (1280, 720))
     
     ggg = time.time()
-    prime_encoder_decoder(trt_encoder_path, trt_decoder_path, raw_image)
+    # prime_encoder_decoder(trt_encoder_path, trt_decoder_path, raw_image)
     hhh = time.time()
 
     eee = time.time()
@@ -201,18 +205,24 @@ def main(image_path, gaze_start, gaze_end):
         gaze_pitchyaw = gaze_smoother(gaze_pitchyaw, t=CURRENT_TIMESTAMP)
         m = time.time()
     
+    # p = time.time()
+    # gaze_points = get_pixels_on_line(raw_image, args.gaze_start, args.gaze_end)
+
+    timer.start_record("visualize")
+    n = time.time()
+    # show_frame = visualize_simple(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
+    frame, vector_head, vector_tail = visualize_simple(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
+    o = time.time()
+    timer.end_record("visualize")
+    timer.end_record("whole_pipeline")
+    
     p = time.time()
-    gaze_points = get_pixels_on_line(raw_image, args.gaze_start, args.gaze_end)
+    gaze_points = get_pixels_on_line(raw_image, vector_head, vector_tail)
+    
     NUM_POINTS = 32
     gaze_start, gaze_end = gaze_points[0], gaze_points[-1]
     indices = np.linspace(0, len(gaze_points) - 1, NUM_POINTS, dtype=int)
     gaze_points = gaze_points[indices]
-
-    q = time.time()
-    # run vit model
-    c = time.time()
-    masks = efficientvit_mask_generator.generate(raw_image, gaze_points)
-    d = time.time()
 
     # run yolo model
     qq = time.time()
@@ -223,29 +233,54 @@ def main(image_path, gaze_start, gaze_end):
     predictions = trt_yolo(yolo_img)
     s = time.time()
     bounding_boxes = visualize_bounding_boxes(raw_image, predictions, raw_image.shape[:2])
-    t = time.time()
+    # t = time.time()
 
-    timer.start_record("visualize")
-    n = time.time()
-    # show_frame = visualize_simple(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
-    if faces is not None:
-        show_frame = visualize(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
-    o = time.time()
-    timer.end_record("visualize")
-    timer.end_record("whole_pipeline")
-    # show_frame = timer.print_on_image(show_frame)
+    # timer.start_record("visualize")
+    # n = time.time()
+    # # show_frame = visualize_simple(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
+    # if faces is not None:
+    #     show_frame = visualize(frame, face, landmark, gaze_pitchyaw, [rvec, tvec])
+    # o = time.time()
+    # timer.end_record("visualize")
+    # timer.end_record("whole_pipeline")
+    # # show_frame = timer.print_on_image(show_frame)
+
+    q = time.time()
+    # run vit model
+    c = time.time()
+    masks = efficientvit_mask_generator.generate(raw_image, gaze_points, bounding_boxes)
+    d = time.time()
+
+    t = time.time()
     
     # visualize
     v = time.time()
     # raw_image = show_anns(raw_image, masks)
-    raw_image = show_one_ann(masks, gaze_points, gaze_start, gaze_end, bounding_boxes, args.gaze_start, raw_image)
+    # raw_image = show_one_ann(masks, gaze_points, gaze_start, gaze_end, bounding_boxes, args.gaze_start, raw_image)
     
+    # w = time.time()
+    # plt.axis("off")
+    # plt.imshow(raw_image)
+    # xx = time.time()
+    # plt.savefig(f"{args.output_path}", format="png", dpi=300, bbox_inches="tight", pad_inches=0.0)
+    # x = time.time()
+    raw_image, _, _, _, _ = show_one_box_ann(masks, gaze_points, gaze_start, gaze_end, bounding_boxes, gaze_start, raw_image)
+    # bounding_boxes = visualize_bounding_boxes(raw_image, predictions, raw_image.shape[:2])
+
     w = time.time()
-    plt.axis("off")
-    plt.imshow(raw_image)
+    raw_image = cv2.cvtColor(raw_image, cv2.COLOR_BGR2RGB)
+    cv2.imwrite(f"{args.output_path}", raw_image)
+    # plt.axis("off")
+    # plt.imshow(raw_image)
     xx = time.time()
-    plt.savefig(f"{args.output_path}", format="png", dpi=300, bbox_inches="tight", pad_inches=0.0)
+    # plt.savefig(f"{args.output_path}", format="png", dpi=300, bbox_inches="tight", pad_inches=0.0)
     x = time.time()
+
+    print()
+
+    print("bounding boxes:")
+    for box in bounding_boxes:
+        print(box)
     
     print()
 
@@ -292,18 +327,31 @@ def main(image_path, gaze_start, gaze_end):
     return w-e, t - qq, s - ss
 
 if __name__ == "__main__":
-    files = ["../base_imgs/gum.png", "../base_imgs/help.png", "../base_imgs/pen.png", "../base_imgs/psycho.png", "../base_imgs/workpls_v2.png", "../base_imgs/zz.png"]
-    eyes = [(717, 254), (575, 253), (617, 288), (595, 361), (746, 435), (485, 329)]
-    tails = [(424, 286), (568, 0), (808, 242), (757, 396), (930, 434), (189, 362)]
+    # files = ["../base_imgs/gum.png", "../base_imgs/help.png", "../base_imgs/pen.png", "../base_imgs/psycho.png", "../base_imgs/workpls_v2.png", "../base_imgs/zz.png"]
+    # eyes = [(717, 254), (575, 253), (617, 288), (595, 361), (746, 435), (485, 329)]
+    # tails = [(424, 286), (568, 0), (808, 242), (757, 396), (930, 434), (189, 362)]
+
+    # files = ["../base_imgs/gum.png", "../base_imgs/help.png", "../base_imgs/pen.png", "../base_imgs/psycho.png", "../base_imgs/workpls_v2.png", "../base_imgs/zz.png", "../base_imgs/dog.jpeg"]
+    # files = ["../base_imgs/holding_cup.png"]
+    files = ["../base_imgs/holding_mug.png"]
+
+
+    # eyes = [(717, 254), (575, 253), (617, 288), (595, 361), (746, 435), (485, 329)]
+    # tails = [(424, 286), (568, 0), (808, 242), (757, 396), (930, 434), (189, 362)]
 
     avg_total_time = 0
     avg_yolo_time = 0
     avg_yolo_pred_time = 0
     i = 0
-    for file, eye, tail in zip(files, eyes, tails):
+    # for file, eye, tail in zip(files, eyes, tails):
+    #     print()
+    #     print(f"~~~ ITER {i+1} with file {file} ~~~")
+    #     total_time, yolo_time, yolo_pred_time =  main(file, eye, tail)
+    for file in files:
         print()
         print(f"~~~ ITER {i+1} with file {file} ~~~")
-        total_time, yolo_time, yolo_pred_time =  main(file, eye, tail)
+        total_time, yolo_time, yolo_pred_time =  main(file)
+        
         avg_total_time += total_time
         avg_yolo_time += yolo_time
         avg_yolo_pred_time += yolo_pred_time

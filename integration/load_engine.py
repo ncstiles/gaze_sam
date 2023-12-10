@@ -26,16 +26,32 @@ def load_mask_decoder_engine(path: str):
 
     mask_decoder_trt = TRTModule(
         engine=engine,
-        input_names=[
-            "image_embeddings",
-            "point_coords",
-            "point_labels",
-            "mask_input",
-            "has_mask_input"
-        ],
+        # input_names=[
+        #     "image_embeddings",
+        #     "point_coords",
+        #     "point_labels",
+        #     "mask_input",
+        #     "has_mask_input"
+        # ],
+        # # output_names=[
+        # #     "stacked_output"
+        # # ]
+        # input_names=[
+        #     "image_embeddings",
+        #     "point_coords",
+        #     "point_labels",
+        #     "mask_input",
+        #     "has_mask_input"
+        # ],
         # output_names=[
         #     "stacked_output"
         # ]
+        input_names=[
+            "image_embeddings",
+            "boxes",
+            "mask_input",
+            "has_mask_input"
+        ],
         output_names=[
             "iou_predictions",
             "low_res_masks"

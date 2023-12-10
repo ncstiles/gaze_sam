@@ -1,11 +1,11 @@
 FACE_ONNX_PATH="face_detection.onnx"
-FACE_ENGINE_PATH="../../engines/gaze/face_detection_k9_fp16_trt8.6.engine"
+FACE_ENGINE_PATH="../../engines/gaze/face_detection_fp16.engine"
 
 LANDMARK_ONNX_PATH="landmark_detection.onnx"
-LANDMARK_ENGINE_PATH="../../engines/gaze/landmark_detection_k9_fp16_trt8.6.engine"
+LANDMARK_ENGINE_PATH="../../engines/gaze/landmark_detection_fp16.engine"
 
 GAZE_ONNX_PATH="gaze_estimation.onnx"
-GAZE_ENGINE_PATH="../../engines/gaze/gaze_estimation_k9_fp16_trt8.6.engine"
+GAZE_ENGINE_PATH="../../engines/gaze/gaze_estimation_fp16.engine"
 
 polygraphy surgeon sanitize --fold-constants $FACE_ONNX_PATH -o $FACE_ONNX_PATH
 echo "--- constant folding (face) complete ---"
