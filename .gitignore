@@ -1,0 +1,14 @@
+*.engine
+*.onnx
+*.png
+__init__.py
+*.pyc
+*.jpg
+*.cache
+*.pt
+*.mp4
+*.o
+*.c
+*.so
+*.pyx
+*.cache
